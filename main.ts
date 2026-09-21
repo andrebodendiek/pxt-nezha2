@@ -551,6 +551,223 @@ namespace nezhaV2 {
         return __ultrasonicMeasure(trig, echo, 0, unit);
     }
 
+    // ===================== Color sensor (Grove I2C Color Sensor) =====================
+    // v2.0: TCS3472 (I2C 0x29) - v1.2: TCS3414CS (I2C 0x39), detected automatically
+
+    export enum ColorChannel {
+        //% block="red"
+        Red = 1,
+        //% block="green"
+        Green = 2,
+        //% block="blue"
+        Blue = 3,
+        //% block="brightness"
+        Brightness = 4
+    }
+
+    export enum DetectColor {
+        //% block="red"
+        Red = 1,
+        //% block="yellow"
+        Yellow = 2,
+        //% block="green"
+        Green = 3,
+        //% block="blue"
+        Blue = 4,
+        //% block="black"
+        Black = 5,
+        //% block="white"
+        White = 6
+    }
+
+    const COLOR_ADDR_V2 = 0x29;
+    const COLOR_ADDR_V1 = 0x39;
+    let colorChip = 0; // 0 = not initialised, 1 = TCS3414 (v1.2), 2 = TCS3472 (v2.0), -1 = not found
+    // raw values of the last measurement: clear, red, green, blue
+    let colorRaw = [0, 0, 0, 0];
+    // white reference (0 = not calibrated)
+    let colorWhite = [0, 0, 0, 0];
+
+    function __colorWrite(addr: number, reg: number, value: number): void {
+        let buf = pins.createBuffer(2);
+        buf[0] = reg;
+        buf[1] = value;
+        pins.i2cWriteBuffer(addr, buf);
+    }
+
+    function __colorRead8(addr: number, reg: number): number {
+        pins.i2cWriteNumber(addr, reg, NumberFormat.UInt8BE, true);
+        return pins.i2cReadNumber(addr, NumberFormat.UInt8BE, false);
+    }
+
+    function __colorInit(): void {
+        if (colorChip != 0) return;
+        // TCS3472 (v2.0): ID register 0x12 -> 0x44 or 0x4D
+        let id = __colorRead8(COLOR_ADDR_V2, 0x80 | 0x12);
+        if (id == 0x44 || id == 0x4D) {
+            __colorWrite(COLOR_ADDR_V2, 0x80 | 0x00, 0x01); // ENABLE: power on
+            basic.pause(3);
+            __colorWrite(COLOR_ADDR_V2, 0x80 | 0x01, 0xEB); // ATIME: ~50 ms
+            __colorWrite(COLOR_ADDR_V2, 0x80 | 0x0F, 0x01); // CONTROL: gain 4x
+            __colorWrite(COLOR_ADDR_V2, 0x80 | 0x00, 0x03); // ENABLE: power on + ADC
+            colorChip = 2;
+            basic.pause(60);
+            return;
+        }
+        // TCS3414CS (v1.2): ID register 0x04 -> upper nibble 0x1
+        id = __colorRead8(COLOR_ADDR_V1, 0x80 | 0x04);
+        if ((id & 0xF0) == 0x10) {
+            __colorWrite(COLOR_ADDR_V1, 0x80 | 0x00, 0x01); // CONTROL: power on
+            __colorWrite(COLOR_ADDR_V1, 0x80 | 0x01, 0x01); // TIMING: free running, 100 ms
+            __colorWrite(COLOR_ADDR_V1, 0x80 | 0x07, 0x10); // GAIN: 4x, prescaler 1
+            __colorWrite(COLOR_ADDR_V1, 0x80 | 0x00, 0x03); // CONTROL: power on + ADC
+            colorChip = 1;
+            basic.pause(120);
+            return;
+        }
+        colorChip = -1;
+    }
+
+    function __colorMeasure(): void {
+        __colorInit();
+        if (colorChip == 2) {
+            // auto-increment read from CDATAL (0x14): C, R, G, B (16 bit little endian)
+            pins.i2cWriteNumber(COLOR_ADDR_V2, 0x80 | 0x20 | 0x14, NumberFormat.UInt8BE, true);
+            let b = pins.i2cReadBuffer(COLOR_ADDR_V2, 8);
+            colorRaw[0] = b[0] | (b[1] << 8);
+            colorRaw[1] = b[2] | (b[3] << 8);
+            colorRaw[2] = b[4] | (b[5] << 8);
+            colorRaw[3] = b[6] | (b[7] << 8);
+        } else if (colorChip == 1) {
+            // data registers: 0x10 green, 0x12 red, 0x14 blue, 0x16 clear
+            let g = __colorRead8(COLOR_ADDR_V1, 0x90) | (__colorRead8(COLOR_ADDR_V1, 0x91) << 8);
+            let r = __colorRead8(COLOR_ADDR_V1, 0x92) | (__colorRead8(COLOR_ADDR_V1, 0x93) << 8);
+            let bl = __colorRead8(COLOR_ADDR_V1, 0x94) | (__colorRead8(COLOR_ADDR_V1, 0x95) << 8);
+            let c = __colorRead8(COLOR_ADDR_V1, 0x96) | (__colorRead8(COLOR_ADDR_V1, 0x97) << 8);
+            colorRaw[0] = c; colorRaw[1] = r; colorRaw[2] = g; colorRaw[3] = bl;
+        } else {
+            colorRaw = [0, 0, 0, 0];
+        }
+    }
+
+    // colour value 0..255 relative to the white reference (or to the strongest channel if not calibrated)
+    function __colorScaled(index: number): number {
+        let ref = colorWhite[index];
+        if (ref <= 0) {
+            ref = Math.max(colorRaw[1], Math.max(colorRaw[2], colorRaw[3]));
+        }
+        if (ref <= 0) return 0;
+        return Math.min(255, Math.round(colorRaw[index] * 255 / ref));
+    }
+
+    function __colorHue(r: number, g: number, b: number): number {
+        let max = Math.max(r, Math.max(g, b));
+        let min = Math.min(r, Math.min(g, b));
+        let d = max - min;
+        if (d == 0) return 0;
+        let h = 0;
+        if (max == r) {
+            h = 60 * ((g - b) / d);
+        } else if (max == g) {
+            h = 60 * ((b - r) / d + 2);
+        } else {
+            h = 60 * ((r - g) / d + 4);
+        }
+        if (h < 0) h += 360;
+        return Math.round(h);
+    }
+
+    /**
+     * Reads a colour channel (0-255) or the brightness (0-100 %, raw value if not calibrated)
+     */
+    //% subcategory="Color sensor" group="Measure"
+    //% weight=280
+    //% blockId=nezhaV2_color_value
+    //% block="color sensor %channel"
+    export function colorSensorValue(channel: ColorChannel): number {
+        __colorMeasure();
+        if (channel == ColorChannel.Brightness) {
+            if (colorWhite[0] > 0) {
+                return Math.min(100, Math.round(colorRaw[0] * 100 / colorWhite[0]));
+            }
+            return colorRaw[0];
+        }
+        return __colorScaled(channel);
+    }
+
+    /**
+     * Hue of the measured colour in degrees (0 = red, 120 = green, 240 = blue)
+     */
+    //% subcategory="Color sensor" group="Measure"
+    //% weight=279
+    //% blockId=nezhaV2_color_hue
+    //% block="color sensor hue (0-360°)"
+    export function colorSensorHue(): number {
+        __colorMeasure();
+        return __colorHue(__colorScaled(1), __colorScaled(2), __colorScaled(3));
+    }
+
+    /**
+     * Checks whether the sensor detects the given colour. Calibrate white first for reliable black/white detection.
+     */
+    //% subcategory="Color sensor" group="Detect"
+    //% weight=270
+    //% blockId=nezhaV2_color_is
+    //% block="color sensor detects %color"
+    export function colorSensorIs(color: DetectColor): boolean {
+        __colorMeasure();
+        if (colorChip < 0) return false;
+        let r = __colorScaled(1);
+        let g = __colorScaled(2);
+        let b = __colorScaled(3);
+        let max = Math.max(r, Math.max(g, b));
+        let min = Math.min(r, Math.min(g, b));
+        let saturation = max > 0 ? (max - min) / max : 0;
+        // brightness in % of white (without calibration: rough estimate from the raw clear value)
+        let brightness = colorWhite[0] > 0 ? colorRaw[0] * 100 / colorWhite[0] : colorRaw[0] * 100 / (colorChip == 2 ? 3000 : 1500);
+        let hue = __colorHue(r, g, b);
+        switch (color) {
+            case DetectColor.Black:
+                return brightness < 20;
+            case DetectColor.White:
+                return brightness >= 60 && saturation < 0.25;
+        }
+        if (brightness < 10 || saturation < 0.25) return false;
+        switch (color) {
+            case DetectColor.Red: return hue < 20 || hue >= 330;
+            case DetectColor.Yellow: return hue >= 35 && hue < 75;
+            case DetectColor.Green: return hue >= 75 && hue < 170;
+            case DetectColor.Blue: return hue >= 170 && hue < 260;
+        }
+        return false;
+    }
+
+    /**
+     * Stores the current measurement as white reference. Hold the sensor over a white surface.
+     */
+    //% subcategory="Color sensor" group="Setup"
+    //% weight=260
+    //% blockId=nezhaV2_color_calibrate
+    //% block="color sensor calibrate white"
+    export function colorSensorCalibrateWhite(): void {
+        __colorMeasure();
+        for (let i = 0; i < 4; i++) {
+            colorWhite[i] = colorRaw[i];
+        }
+    }
+
+    /**
+     * true if a Grove I2C colour sensor (v1.2 or v2.0) was found
+     */
+    //% subcategory="Color sensor" group="Setup"
+    //% weight=259
+    //% blockId=nezhaV2_color_connected
+    //% block="color sensor connected"
+    export function colorSensorConnected(): boolean {
+        __colorInit();
+        return colorChip > 0;
+    }
+
     //% group="export functions"
     //% weight=320
     //%block="version number"

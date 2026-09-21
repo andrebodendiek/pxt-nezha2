@@ -7,5 +7,10 @@
   "nezhaV2.ultrasonicObstacle|param|value": "Grenzabstand",
   "nezhaV2.ultrasonicDistancePins": "Misst die Entfernung mit einem Ultraschallsensor (z. B. HC-SR04) an frei wählbaren Pins (0 = kein Echo / außer Reichweite)",
   "nezhaV2.ultrasonicDistancePins|param|trig": "Trigger-Pin",
-  "nezhaV2.ultrasonicDistancePins|param|echo": "Echo-Pin"
+  "nezhaV2.ultrasonicDistancePins|param|echo": "Echo-Pin",
+  "nezhaV2.colorSensorValue": "Liest einen Farbkanal (0–255) oder die Helligkeit (0–100 %, ohne Weißabgleich Rohwert)",
+  "nezhaV2.colorSensorHue": "Farbton der gemessenen Farbe in Grad (0 = Rot, 120 = Grün, 240 = Blau)",
+  "nezhaV2.colorSensorIs": "Prüft, ob der Sensor die gewählte Farbe erkennt. Für zuverlässiges Schwarz/Weiß vorher den Weißabgleich durchführen.",
+  "nezhaV2.colorSensorCalibrateWhite": "Speichert die aktuelle Messung als Weiß-Referenz. Den Sensor dabei über eine weiße Fläche halten.",
+  "nezhaV2.colorSensorConnected": "wahr, wenn ein Grove-I2C-Farbsensor (v1.2 oder v2.0) gefunden wurde"
 }
