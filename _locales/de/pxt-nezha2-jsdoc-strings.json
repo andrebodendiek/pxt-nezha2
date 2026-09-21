@@ -1,3 +1,11 @@
 {
-  "nezhaV2.setWheelPerimeter": "Strecke, die das Rad bei einer Motorumdrehung zurücklegt (Radumfang)"
+  "nezhaV2.setWheelPerimeter": "Strecke, die das Rad bei einer Motorumdrehung zurücklegt (Radumfang)",
+  "nezhaV2.ultrasonicDistance": "Misst die Entfernung mit einem ELECFREAKS-Ultraschallsensor an einem RJ11-Anschluss (0 = kein Echo / außer Reichweite)",
+  "nezhaV2.ultrasonicDistance|param|port": "RJ11-Anschluss des Sensors",
+  "nezhaV2.ultrasonicObstacle": "Prüft, ob ein Hindernis näher als die angegebene Entfernung ist",
+  "nezhaV2.ultrasonicObstacle|param|port": "RJ11-Anschluss des Sensors",
+  "nezhaV2.ultrasonicObstacle|param|value": "Grenzabstand",
+  "nezhaV2.ultrasonicDistancePins": "Misst die Entfernung mit einem Ultraschallsensor (z. B. HC-SR04) an frei wählbaren Pins (0 = kein Echo / außer Reichweite)",
+  "nezhaV2.ultrasonicDistancePins|param|trig": "Trigger-Pin",
+  "nezhaV2.ultrasonicDistancePins|param|echo": "Echo-Pin"
 }

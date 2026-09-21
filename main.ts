@@ -454,6 +454,103 @@ namespace nezhaV2 {
         comboRotateCalibrationFactor = factor;
     }
 
+    // ===================== Ultrasonic sensor =====================
+
+    export enum RJPort {
+        //% block="J1"
+        J1 = 1,
+        //% block="J2"
+        J2 = 2,
+        //% block="J3"
+        J3 = 3,
+        //% block="J4"
+        J4 = 4
+    }
+
+    // last valid measurement per port (J1..J4) and for free pins (index 0)
+    let ultrasonicLast = [0, 0, 0, 0, 0];
+
+    function __ultrasonicMeasure(trig: DigitalPin, echo: DigitalPin, slot: number, unit: Uint): number {
+        pins.setPull(trig, PinPullMode.PullNone);
+        pins.digitalWritePin(trig, 0);
+        control.waitMicros(2);
+        pins.digitalWritePin(trig, 1);
+        control.waitMicros(10);
+        pins.digitalWritePin(trig, 0);
+        // max. ~4 m range -> 25 ms timeout
+        let d = pins.pulseIn(echo, PulseValue.High, 25000);
+        let distance = d * 34 / 2 / 1000;
+        if (control.hardwareVersion() == "1") {
+            distance = distance * 3 / 2;
+        }
+        if (distance > 430) {
+            distance = 0;
+        }
+        // single failed readings return the last valid value
+        if (distance == 0) {
+            distance = ultrasonicLast[slot];
+            ultrasonicLast[slot] = 0;
+        } else {
+            ultrasonicLast[slot] = distance;
+        }
+        if (unit == Uint.inch) {
+            return Math.round(distance / 2.54 * 10) / 10;
+        }
+        return Math.round(distance);
+    }
+
+    /**
+     * Measures the distance with an ELECFREAKS ultrasonic sensor on an RJ11 port (0 = no echo / out of range)
+     * @param port RJ11 port of the sensor, eg: nezhaV2.RJPort.J1
+     */
+    //% subcategory="Ultrasonic sensor" group="RJ11 port"
+    //% weight=300
+    //% blockId=nezhaV2_ultrasonic_distance
+    //% block="ultrasonic sensor %port distance in %unit"
+    //% port.fieldEditor="gridpicker" port.fieldOptions.columns=4
+    export function ultrasonicDistance(port: RJPort, unit: Uint): number {
+        let trig = DigitalPin.P1;
+        let echo = DigitalPin.P8;
+        switch (port) {
+            case RJPort.J1: trig = DigitalPin.P1; echo = DigitalPin.P8; break;
+            case RJPort.J2: trig = DigitalPin.P2; echo = DigitalPin.P12; break;
+            case RJPort.J3: trig = DigitalPin.P13; echo = DigitalPin.P14; break;
+            case RJPort.J4: trig = DigitalPin.P15; echo = DigitalPin.P16; break;
+        }
+        return __ultrasonicMeasure(trig, echo, port, unit);
+    }
+
+    /**
+     * Checks whether an obstacle is closer than the given distance
+     * @param port RJ11 port of the sensor, eg: nezhaV2.RJPort.J1
+     * @param value threshold distance, eg: 10
+     */
+    //% subcategory="Ultrasonic sensor" group="RJ11 port"
+    //% weight=299
+    //% blockId=nezhaV2_ultrasonic_obstacle
+    //% block="ultrasonic sensor %port obstacle closer than %value %unit"
+    //% port.fieldEditor="gridpicker" port.fieldOptions.columns=4
+    //% value.min=1 value.max=400 value.defl=10
+    export function ultrasonicObstacle(port: RJPort, value: number, unit: Uint): boolean {
+        let distance = ultrasonicDistance(port, unit);
+        return distance > 0 && distance < value;
+    }
+
+    /**
+     * Measures the distance with an ultrasonic sensor (e.g. HC-SR04) on freely chosen pins (0 = no echo / out of range)
+     * @param trig trigger pin, eg: DigitalPin.P1
+     * @param echo echo pin, eg: DigitalPin.P2
+     */
+    //% subcategory="Ultrasonic sensor" group="Free pins"
+    //% weight=290
+    //% blockId=nezhaV2_ultrasonic_distance_pins
+    //% block="ultrasonic sensor trig %trig echo %echo distance in %unit"
+    //% trig.defl=DigitalPin.P1 echo.defl=DigitalPin.P2
+    //% inlineInputMode=inline
+    export function ultrasonicDistancePins(trig: DigitalPin, echo: DigitalPin, unit: Uint): number {
+        return __ultrasonicMeasure(trig, echo, 0, unit);
+    }
+
     //% group="export functions"
     //% weight=320
     //%block="version number"

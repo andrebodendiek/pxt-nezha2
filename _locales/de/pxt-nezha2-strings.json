@@ -51,6 +51,13 @@
 
     "nezhaV2.readVersion|block": "Versionsnummer",
 
+    "nezhaV2.ultrasonicDistance|block": "Ultraschallsensor %port Entfernung in %unit",
+    "nezhaV2.ultrasonicObstacle|block": "Ultraschallsensor %port Hindernis näher als %value %unit",
+    "nezhaV2.ultrasonicDistancePins|block": "Ultraschallsensor Trig %trig Echo %echo Entfernung in %unit",
+    "{id:subcategory}Ultrasonic sensor": "Ultraschallsensor",
+    "{id:group}RJ11 port": "RJ11-Anschluss",
+    "{id:group}Free pins": "Freie Pins",
+
     "{id:group}Basic functions": "Grundfunktionen",
     "{id:group}Application functions": "Fahrfunktionen",
     "{id:group}export functions": "Weitere Funktionen",
