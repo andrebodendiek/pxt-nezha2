@@ -614,6 +614,12 @@ namespace nezhaV2 {
             basic.pause(60);
             return;
         }
+        // address 0x39 is also used by the APDS9960 (Planet X) - exclude it first
+        let apdsId = __colorRead8(COLOR_ADDR_V1, 0x92);
+        if (apdsId == 0xAB || apdsId == 0x9C || apdsId == 0xA8) {
+            colorChip = -1;
+            return;
+        }
         // TCS3414CS (v1.2): ID register 0x04 -> upper nibble 0x1
         id = __colorRead8(COLOR_ADDR_V1, 0x80 | 0x04);
         if ((id & 0xF0) == 0x10) {
@@ -680,10 +686,10 @@ namespace nezhaV2 {
     /**
      * Reads a colour channel (0-255) or the brightness (0-100 %, raw value if not calibrated)
      */
-    //% subcategory="Color sensor" group="Measure"
+    //% subcategory="Grove color sensor" group="Measure"
     //% weight=280
     //% blockId=nezhaV2_color_value
-    //% block="color sensor %channel"
+    //% block="Grove color sensor %channel"
     export function colorSensorValue(channel: ColorChannel): number {
         __colorMeasure();
         if (channel == ColorChannel.Brightness) {
@@ -698,10 +704,10 @@ namespace nezhaV2 {
     /**
      * Hue of the measured colour in degrees (0 = red, 120 = green, 240 = blue)
      */
-    //% subcategory="Color sensor" group="Measure"
+    //% subcategory="Grove color sensor" group="Measure"
     //% weight=279
     //% blockId=nezhaV2_color_hue
-    //% block="color sensor hue (0-360°)"
+    //% block="Grove color sensor hue (0-360°)"
     export function colorSensorHue(): number {
         __colorMeasure();
         return __colorHue(__colorScaled(1), __colorScaled(2), __colorScaled(3));
@@ -710,10 +716,10 @@ namespace nezhaV2 {
     /**
      * Checks whether the sensor detects the given colour. Calibrate white first for reliable black/white detection.
      */
-    //% subcategory="Color sensor" group="Detect"
+    //% subcategory="Grove color sensor" group="Detect"
     //% weight=270
     //% blockId=nezhaV2_color_is
-    //% block="color sensor detects %color"
+    //% block="Grove color sensor detects %color"
     export function colorSensorIs(color: DetectColor): boolean {
         __colorMeasure();
         if (colorChip < 0) return false;
@@ -745,10 +751,10 @@ namespace nezhaV2 {
     /**
      * Stores the current measurement as white reference. Hold the sensor over a white surface.
      */
-    //% subcategory="Color sensor" group="Setup"
+    //% subcategory="Grove color sensor" group="Setup"
     //% weight=260
     //% blockId=nezhaV2_color_calibrate
-    //% block="color sensor calibrate white"
+    //% block="Grove color sensor calibrate white"
     export function colorSensorCalibrateWhite(): void {
         __colorMeasure();
         for (let i = 0; i < 4; i++) {
@@ -759,13 +765,377 @@ namespace nezhaV2 {
     /**
      * true if a Grove I2C colour sensor (v1.2 or v2.0) was found
      */
-    //% subcategory="Color sensor" group="Setup"
+    //% subcategory="Grove color sensor" group="Setup"
     //% weight=259
     //% blockId=nezhaV2_color_connected
-    //% block="color sensor connected"
+    //% block="Grove color sensor connected"
     export function colorSensorConnected(): boolean {
         __colorInit();
         return colorChip > 0;
+    }
+
+    // ===================== Drive (two motors, mirrored mounting) =====================
+
+    export enum MountMode {
+        //% block="normal"
+        Normal = 1,
+        //% block="reversed"
+        Reversed = 2
+    }
+
+    let driveMotorLeft = MotorPostion.M1;
+    let driveMotorRight = MotorPostion.M2;
+    // direction that makes the wheel turn forwards
+    let driveFwdLeft = MovementDirection.CCW;
+    let driveFwdRight = MovementDirection.CW;
+
+    function __driveDirection(isLeft: boolean, forward: boolean): MovementDirection {
+        let dir = isLeft ? driveFwdLeft : driveFwdRight;
+        if (forward) return dir;
+        return dir == MovementDirection.CW ? MovementDirection.CCW : MovementDirection.CW;
+    }
+
+    /**
+     * Assigns the two drive motors and their mounting direction. Set a motor to "reversed" if its wheel turns backwards.
+     */
+    //% subcategory="Drive" group="Setup"
+    //% weight=250
+    //% blockId=nezhaV2_drive_setup
+    //% block="drive setup: left motor %left %leftMode right motor %right %rightMode"
+    //% inlineInputMode=inline
+    export function driveSetup(left: MotorPostion, leftMode: MountMode, right: MotorPostion, rightMode: MountMode): void {
+        driveMotorLeft = left;
+        driveMotorRight = right;
+        driveFwdLeft = leftMode == MountMode.Reversed ? MovementDirection.CW : MovementDirection.CCW;
+        driveFwdRight = rightMode == MountMode.Reversed ? MovementDirection.CCW : MovementDirection.CW;
+    }
+
+    /**
+     * Both motors drive in the same direction until they are stopped
+     */
+    //% subcategory="Drive" group="Drive"
+    //% weight=240
+    //% blockId=nezhaV2_drive_start
+    //% block="drive %direction at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=50
+    export function driveStart(direction: VerticallDirection, speed: number): void {
+        if (speed < 0) speed = 0;
+        else if (speed > 100) speed = 100;
+        let forward = direction == VerticallDirection.Up;
+        __start(driveMotorLeft, __driveDirection(true, forward), speed);
+        __start(driveMotorRight, __driveDirection(false, forward), speed);
+    }
+
+    /**
+     * Both motors drive in the same direction for the given distance, angle or time
+     */
+    //% subcategory="Drive" group="Drive"
+    //% weight=239
+    //% blockId=nezhaV2_drive_move
+    //% block="drive %direction at %speed \\% for %value %unit"
+    //% speed.min=0 speed.max=100 speed.defl=50 value.defl=1
+    //% inlineInputMode=inline
+    export function driveMove(direction: VerticallDirection, speed: number, value: number, unit: DistanceAndAngleUnit): void {
+        if (speed <= 0 || value <= 0) return;
+        setServoSpeed(speed);
+        let mode = SportsMode.Degree;
+        switch (unit) {
+            case DistanceAndAngleUnit.Circle: mode = SportsMode.Circle; break;
+            case DistanceAndAngleUnit.Degree: mode = SportsMode.Degree; break;
+            case DistanceAndAngleUnit.Second: mode = SportsMode.Second; break;
+            case DistanceAndAngleUnit.cm:
+                if (degreeToDistance <= 0) return;
+                value = 360 * value / degreeToDistance;
+                mode = SportsMode.Degree;
+                break;
+            case DistanceAndAngleUnit.inch:
+                if (degreeToDistance <= 0) return;
+                value = 360 * value * 2.54 / degreeToDistance;
+                mode = SportsMode.Degree;
+                break;
+        }
+        let forward = direction == VerticallDirection.Up;
+        __move(driveMotorLeft, __driveDirection(true, forward), value, mode);
+        __move(driveMotorRight, __driveDirection(false, forward), value, mode);
+        motorDelay(value, mode);
+    }
+
+    /**
+     * Sets both wheel speeds separately (-100 to 100 %), e.g. for curves or turning on the spot
+     */
+    //% subcategory="Drive" group="Drive"
+    //% weight=238
+    //% blockId=nezhaV2_drive_steer
+    //% block="drive with left wheel %speedLeft \\% right wheel %speedRight \\%"
+    //% speedLeft.min=-100 speedLeft.max=100 speedLeft.defl=50
+    //% speedRight.min=-100 speedRight.max=100 speedRight.defl=50
+    //% inlineInputMode=inline
+    export function driveSteer(speedLeft: number, speedRight: number): void {
+        if (speedLeft < -100) speedLeft = -100; else if (speedLeft > 100) speedLeft = 100;
+        if (speedRight < -100) speedRight = -100; else if (speedRight > 100) speedRight = 100;
+        __start(driveMotorLeft, __driveDirection(true, speedLeft >= 0), Math.abs(speedLeft));
+        __start(driveMotorRight, __driveDirection(false, speedRight >= 0), Math.abs(speedRight));
+    }
+
+    export enum TurnDirection {
+        //% block="left"
+        Left = 1,
+        //% block="right"
+        Right = 2
+    }
+
+    let driveTurnFactor = 1.0;
+
+    /**
+     * Wheel circumference and wheelbase (distance between the two wheels) - needed for turning on the spot
+     * @param perimeter wheel circumference, eg: 20
+     * @param wheelBase distance between the two wheels, eg: 12
+     */
+    //% subcategory="Drive" group="Setup"
+    //% weight=249
+    //% blockId=nezhaV2_drive_geometry
+    //% block="drive dimensions: wheel circumference %perimeter wheelbase %wheelBase %unit"
+    //% inlineInputMode=inline
+    export function driveGeometry(perimeter: number, wheelBase: number, unit: Uint): void {
+        setWheelPerimeter(perimeter, unit);
+        setWheelBase(wheelBase, unit);
+    }
+
+    /**
+     * Correction factor for turning on the spot: turned too little -> increase, turned too much -> decrease
+     * @param factor correction factor, eg: 1
+     */
+    //% subcategory="Drive" group="Setup"
+    //% weight=248
+    //% blockId=nezhaV2_drive_turn_calibration
+    //% block="drive turn correction factor %factor"
+    //% factor.defl=1
+    export function driveTurnCalibration(factor: number): void {
+        if (factor <= 0) factor = 1.0;
+        driveTurnFactor = factor;
+    }
+
+    /**
+     * Turns on the spot by the given angle (both wheels run in opposite directions). Requires the drive dimensions.
+     * @param angle angle in degrees, eg: 90
+     */
+    //% subcategory="Drive" group="Drive"
+    //% weight=236
+    //% blockId=nezhaV2_drive_turn
+    //% block="turn %direction by %angle ° at %speed \\%"
+    //% angle.min=1 angle.max=360 angle.defl=90
+    //% speed.min=0 speed.max=100 speed.defl=40
+    //% inlineInputMode=inline
+    export function driveTurn(direction: TurnDirection, angle: number, speed: number): void {
+        if (speed <= 0 || angle <= 0) return;
+        if (wheelBaseDistance <= 0 || degreeToDistance <= 0) {
+            // without the drive dimensions the rotation cannot be calculated
+            return;
+        }
+        // arc length of one wheel, converted into motor degrees
+        let arcDistance = angle * Math.PI / 180 * (wheelBaseDistance / 2);
+        let motorDegrees = arcDistance * 360 * driveTurnFactor / degreeToDistance;
+        setServoSpeed(speed);
+        // turning right: left wheel forwards, right wheel backwards
+        let leftForward = direction == TurnDirection.Right;
+        __move(driveMotorLeft, __driveDirection(true, leftForward), motorDegrees, SportsMode.Degree);
+        __move(driveMotorRight, __driveDirection(false, !leftForward), motorDegrees, SportsMode.Degree);
+        motorDelay(motorDegrees, SportsMode.Degree);
+    }
+
+    /**
+     * Turns exactly 90° on the spot. Requires the drive dimensions.
+     */
+    //% subcategory="Drive" group="Drive"
+    //% weight=235
+    //% blockId=nezhaV2_drive_turn90
+    //% block="turn 90° %direction at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=40
+    export function driveTurn90(direction: TurnDirection, speed: number): void {
+        driveTurn(direction, 90, speed);
+    }
+
+    /**
+     * Stops both drive motors
+     */
+    //% subcategory="Drive" group="Drive"
+    //% weight=237
+    //% blockId=nezhaV2_drive_stop
+    //% block="stop driving"
+    export function driveStop(): void {
+        stop(driveMotorLeft);
+        stop(driveMotorRight);
+    }
+
+    // ===================== Planet X color sensor (ELECFREAKS, I2C port) =====================
+    // newer module: I2C 0x43 - older module: APDS9960 on I2C 0x39
+    // register sequences follow the official ELECFREAKS extension pxt-PlanetX
+
+    export enum PlanetXColor {
+        //% block="red"
+        Red = 1,
+        //% block="yellow"
+        Yellow = 2,
+        //% block="green"
+        Green = 3,
+        //% block="cyan"
+        Cyan = 4,
+        //% block="blue"
+        Blue = 5,
+        //% block="magenta"
+        Magenta = 6,
+        //% block="white"
+        White = 7
+    }
+
+    const PX_ADDR_NEW = 0x43;
+    const PX_ADDR_APDS = 0x39;
+    let pxColorMode = 0; // 0 = not initialised, 1 = 0x43 module, 2 = APDS9960, -1 = not found
+    let pxRaw = [0, 0, 0, 0];    // clear, red, green, blue (corrected)
+    let pxScaled = [0, 0, 0];    // red, green, blue 0..255
+
+    function __pxRead8(addr: number, reg: number): number {
+        pins.i2cWriteNumber(addr, reg, NumberFormat.UInt8BE);
+        return pins.i2cReadNumber(addr, NumberFormat.UInt8BE);
+    }
+
+    function __pxRead16(addr: number, regLow: number): number {
+        return __pxRead8(addr, regLow) + __pxRead8(addr, regLow + 1) * 256;
+    }
+
+    function __pxColorInit(): void {
+        if (pxColorMode != 0) return;
+        // newer module on 0x43
+        let i = 0;
+        while (i++ < 10) {
+            __colorWrite(PX_ADDR_NEW, 0x81, 0xCA);
+            __colorWrite(PX_ADDR_NEW, 0x80, 0x17);
+            basic.pause(50);
+            if (__pxRead16(PX_ADDR_NEW, 0xA4) != 0) {
+                pxColorMode = 1;
+                return;
+            }
+        }
+        // older module: APDS9960, ID register 0x92
+        let id = __pxRead8(PX_ADDR_APDS, 0x92);
+        if (id == 0xAB || id == 0x9C || id == 0xA8) {
+            __colorWrite(PX_ADDR_APDS, 0x81, 252);  // ATIME
+            __colorWrite(PX_ADDR_APDS, 0x8F, 0x03); // CONTROL: gain
+            __colorWrite(PX_ADDR_APDS, 0x80, 0x00); // ENABLE off
+            __colorWrite(PX_ADDR_APDS, 0xAB, 0x00); // GCONF4
+            __colorWrite(PX_ADDR_APDS, 0xE7, 0x00); // AICLEAR
+            __colorWrite(PX_ADDR_APDS, 0x80, 0x01); // power on
+            let tmp = __pxRead8(PX_ADDR_APDS, 0x80) | 0x02; // enable colour measurement
+            __colorWrite(PX_ADDR_APDS, 0x80, tmp);
+            pxColorMode = 2;
+            return;
+        }
+        pxColorMode = -1;
+    }
+
+    function __pxColorMeasure(): void {
+        __pxColorInit();
+        let c = 0, r = 0, g = 0, b = 0;
+        if (pxColorMode == 1) {
+            basic.pause(100);
+            c = __pxRead16(PX_ADDR_NEW, 0xA6);
+            r = __pxRead16(PX_ADDR_NEW, 0xA0);
+            g = __pxRead16(PX_ADDR_NEW, 0xA2);
+            b = __pxRead16(PX_ADDR_NEW, 0xA4);
+            // channel correction of the official extension
+            r *= 1.3 * 0.47 * 0.83;
+            g *= 0.69 * 0.56 * 0.83;
+            b *= 0.80 * 0.415 * 0.83;
+            c *= 0.3;
+            if (r > b && r > g) {
+                b *= 1.18;
+                g *= 0.95;
+            }
+        } else if (pxColorMode == 2) {
+            let ready = __pxRead8(PX_ADDR_APDS, 0x93) & 0x01;
+            let guard = 0;
+            while (!ready && guard++ < 50) {
+                basic.pause(5);
+                ready = __pxRead8(PX_ADDR_APDS, 0x93) & 0x01;
+            }
+            c = __pxRead16(PX_ADDR_APDS, 0x94);
+            r = __pxRead16(PX_ADDR_APDS, 0x96);
+            g = __pxRead16(PX_ADDR_APDS, 0x98);
+            b = __pxRead16(PX_ADDR_APDS, 0x9A);
+        }
+        pxRaw = [c, r, g, b];
+        // scale to 0..255 via the clear channel
+        let avg = c / 3;
+        if (avg <= 0) {
+            pxScaled = [0, 0, 0];
+        } else {
+            pxScaled = [
+                Math.min(255, Math.round(r * 255 / avg)),
+                Math.min(255, Math.round(g * 255 / avg)),
+                Math.min(255, Math.round(b * 255 / avg))
+            ];
+        }
+    }
+
+    /**
+     * Hue of the Planet X colour sensor in degrees (0 = red, 120 = green, 240 = blue)
+     */
+    //% subcategory="Planet X color sensor" group="Measure"
+    //% weight=220
+    //% blockId=nezhaV2_px_color_hue
+    //% block="Planet X color sensor hue (0-360°)"
+    export function planetXColorHue(): number {
+        __pxColorMeasure();
+        if (pxColorMode < 0) return 0;
+        return __colorHue(pxScaled[0], pxScaled[1], pxScaled[2]);
+    }
+
+    /**
+     * Reads a colour channel (0-255) or the brightness (raw value of the clear channel) of the Planet X colour sensor
+     */
+    //% subcategory="Planet X color sensor" group="Measure"
+    //% weight=219
+    //% blockId=nezhaV2_px_color_value
+    //% block="Planet X color sensor %channel"
+    export function planetXColorValue(channel: ColorChannel): number {
+        __pxColorMeasure();
+        if (channel == ColorChannel.Brightness) return Math.round(pxRaw[0]);
+        return pxScaled[channel - 1];
+    }
+
+    /**
+     * Checks whether the Planet X colour sensor detects the given colour
+     */
+    //% subcategory="Planet X color sensor" group="Detect"
+    //% weight=218
+    //% blockId=nezhaV2_px_color_is
+    //% block="Planet X color sensor detects %color"
+    //% color.fieldEditor="gridpicker" color.fieldOptions.columns=3
+    export function planetXColorIs(color: PlanetXColor): boolean {
+        let hue = planetXColorHue();
+        if (pxColorMode < 0) return false;
+        switch (color) {
+            case PlanetXColor.Red: return hue > 330 || hue < 20;
+            case PlanetXColor.Yellow: return hue > 30 && hue < 120;
+            case PlanetXColor.Green: return hue > 120 && hue < 180;
+            case PlanetXColor.Cyan: return hue > 190 && hue < 210;
+            case PlanetXColor.Blue: return hue > 210 && hue < 270;
+            case PlanetXColor.Magenta: return hue > 260 && hue < 330;
+            case PlanetXColor.White: return hue >= 180 && hue < 190;
+        }
+        return false;
+    }
+
+    /**
+     * true if a Planet X colour sensor was found
+     */
+    //% subcategory="Planet X color sensor" group="Setup"
+    //% weight=217
+    //% blockId=nezhaV2_px_color_connected
+    //% block="Planet X color sensor connected"
+    export function planetXColorConnected(): boolean {
+        __pxColorInit();
+        return pxColorMode > 0;
     }
 
     //% group="export functions"

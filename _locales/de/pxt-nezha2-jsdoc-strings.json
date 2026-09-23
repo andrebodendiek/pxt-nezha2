@@ -12,5 +12,22 @@
   "nezhaV2.colorSensorHue": "Farbton der gemessenen Farbe in Grad (0 = Rot, 120 = Grün, 240 = Blau)",
   "nezhaV2.colorSensorIs": "Prüft, ob der Sensor die gewählte Farbe erkennt. Für zuverlässiges Schwarz/Weiß vorher den Weißabgleich durchführen.",
   "nezhaV2.colorSensorCalibrateWhite": "Speichert die aktuelle Messung als Weiß-Referenz. Den Sensor dabei über eine weiße Fläche halten.",
-  "nezhaV2.colorSensorConnected": "wahr, wenn ein Grove-I2C-Farbsensor (v1.2 oder v2.0) gefunden wurde"
+  "nezhaV2.colorSensorConnected": "wahr, wenn ein Grove-I2C-Farbsensor (v1.2 oder v2.0) gefunden wurde",
+  "nezhaV2.driveSetup": "Legt die beiden Fahrmotoren und ihre Einbaurichtung fest. Motoren, deren Rad rückwärts dreht, auf „umgekehrt“ stellen.",
+  "nezhaV2.driveStart": "Beide Motoren fahren in dieselbe Richtung, bis sie gestoppt werden",
+  "nezhaV2.driveMove": "Beide Motoren fahren die angegebene Strecke, Gradzahl oder Zeit in dieselbe Richtung",
+  "nezhaV2.driveSteer": "Setzt die Geschwindigkeit beider Räder getrennt (−100 bis 100 %), z. B. für Kurven oder Drehen auf der Stelle",
+  "nezhaV2.driveStop": "Stoppt beide Fahrmotoren",
+  "nezhaV2.driveGeometry": "Radumfang und Spurweite (Abstand der beiden Räder) – nötig für das Drehen auf der Stelle",
+  "nezhaV2.driveGeometry|param|perimeter": "Radumfang",
+  "nezhaV2.driveGeometry|param|wheelBase": "Abstand zwischen den beiden Rädern",
+  "nezhaV2.driveTurnCalibration": "Korrekturfaktor für das Drehen auf der Stelle: dreht zu wenig → erhöhen, dreht zu weit → verringern",
+  "nezhaV2.driveTurnCalibration|param|factor": "Korrekturfaktor",
+  "nezhaV2.driveTurn": "Dreht auf der Stelle um den angegebenen Winkel (beide Räder laufen gegenläufig). Setzt die Antriebsmaße voraus.",
+  "nezhaV2.driveTurn|param|angle": "Winkel in Grad",
+  "nezhaV2.driveTurn90": "Dreht exakt 90° auf der Stelle. Setzt die Antriebsmaße voraus.",
+  "nezhaV2.planetXColorHue": "Farbton des Planet-X-Farbsensors in Grad (0 = Rot, 120 = Grün, 240 = Blau)",
+  "nezhaV2.planetXColorValue": "Liest einen Farbkanal (0–255) oder die Helligkeit (Rohwert des Klarkanals) des Planet-X-Farbsensors",
+  "nezhaV2.planetXColorIs": "Prüft, ob der Planet-X-Farbsensor die gewählte Farbe erkennt",
+  "nezhaV2.planetXColorConnected": "wahr, wenn ein Planet-X-Farbsensor gefunden wurde"
 }
