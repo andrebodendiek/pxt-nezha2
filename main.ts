@@ -1138,6 +1138,462 @@ namespace nezhaV2 {
         return pxColorMode > 0;
     }
 
+    // ===================== Rescue Line =====================
+    // Blocks for RoboCupJunior Rescue Line / Line Entry:
+    // line following, gaps (max. 20 cm), perpendicular intersections with 3 or 4
+    // branches, 90 degree corners, green markers, obstacles, ramps and seesaws.
+
+    export enum LineSensor {
+        //% block="left"
+        Left = 1,
+        //% block="middle"
+        Middle = 2,
+        //% block="right"
+        Right = 3
+    }
+
+    export enum LineLogic {
+        //% block="black = LOW (0)"
+        BlackLow = 1,
+        //% block="black = HIGH (1)"
+        BlackHigh = 2
+    }
+
+    export enum ExitDirection {
+        //% block="left"
+        Left = 1,
+        //% block="straight ahead"
+        Straight = 2,
+        //% block="right"
+        Right = 3
+    }
+
+    export enum FieldColor {
+        //% block="black (line)"
+        Black = 1,
+        //% block="white (floor)"
+        White = 2,
+        //% block="green (marker)"
+        Green = 3,
+        //% block="red (goal tile)"
+        Red = 4,
+        //% block="silver (evacuation zone)"
+        Silver = 5
+    }
+
+    export enum ColorSource {
+        //% block="Planet X"
+        PlanetX = 1,
+        //% block="Grove"
+        Grove = 2
+    }
+
+    let lsPinLeft = DigitalPin.P1;
+    let lsPinMiddle = DigitalPin.P2;
+    let lsPinRight = DigitalPin.P8;
+    let lsHasMiddle = false;
+    let lsBlackLevel = 0;      // digital level that means "black line"
+    let lineGain = 1.2;        // steering strength when following the line
+    let lineColorSource = ColorSource.PlanetX;
+
+    /**
+     * Line sensors on an RJ11 port (2-way sensor: first signal = left, second = right)
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Setup"
+    //% weight=200
+    //% blockId=nezhaV2_line_setup_port
+    //% block="line sensors on %port logic %logic"
+    export function lineSensorSetupPort(port: RJPort, logic: LineLogic): void {
+        switch (port) {
+            case RJPort.J1: lsPinLeft = DigitalPin.P1; lsPinRight = DigitalPin.P8; break;
+            case RJPort.J2: lsPinLeft = DigitalPin.P2; lsPinRight = DigitalPin.P12; break;
+            case RJPort.J3: lsPinLeft = DigitalPin.P13; lsPinRight = DigitalPin.P14; break;
+            case RJPort.J4: lsPinLeft = DigitalPin.P15; lsPinRight = DigitalPin.P16; break;
+        }
+        lsHasMiddle = false;
+        lsBlackLevel = logic == LineLogic.BlackHigh ? 1 : 0;
+    }
+
+    /**
+     * Two line sensors on freely chosen pins
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Setup"
+    //% weight=199
+    //% blockId=nezhaV2_line_setup_2pins
+    //% block="line sensors left %left right %right logic %logic"
+    //% inlineInputMode=inline
+    export function lineSensorSetup2(left: DigitalPin, right: DigitalPin, logic: LineLogic): void {
+        lsPinLeft = left;
+        lsPinRight = right;
+        lsHasMiddle = false;
+        lsBlackLevel = logic == LineLogic.BlackHigh ? 1 : 0;
+    }
+
+    /**
+     * Three line sensors on freely chosen pins (the middle one makes intersections easier to detect)
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Setup"
+    //% weight=198
+    //% blockId=nezhaV2_line_setup_3pins
+    //% block="line sensors left %left middle %middle right %right logic %logic"
+    //% inlineInputMode=inline
+    export function lineSensorSetup3(left: DigitalPin, middle: DigitalPin, right: DigitalPin, logic: LineLogic): void {
+        lsPinLeft = left;
+        lsPinMiddle = middle;
+        lsPinRight = right;
+        lsHasMiddle = true;
+        lsBlackLevel = logic == LineLogic.BlackHigh ? 1 : 0;
+    }
+
+    /**
+     * Steering strength while following the line: higher = sharper corrections
+     * @param gain steering strength, eg: 1.2
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Setup"
+    //% weight=197
+    //% blockId=nezhaV2_line_gain
+    //% block="line steering strength %gain"
+    //% gain.min=0.2 gain.max=2 gain.defl=1.2
+    export function setLineGain(gain: number): void {
+        if (gain < 0.2) gain = 0.2;
+        else if (gain > 2) gain = 2;
+        lineGain = gain;
+    }
+
+    /**
+     * Which colour sensor the field colour blocks use
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Setup"
+    //% weight=196
+    //% blockId=nezhaV2_line_colorsource
+    //% block="use %source colour sensor for field colours"
+    export function setColorSource(source: ColorSource): void {
+        lineColorSource = source;
+    }
+
+    function __lineRead(pin: DigitalPin): boolean {
+        return pins.digitalReadPin(pin) == lsBlackLevel;
+    }
+
+    /**
+     * true if the given sensor is above the black line
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=190
+    //% blockId=nezhaV2_line_seen
+    //% block="%sensor line sensor sees the line"
+    export function lineSeen(sensor: LineSensor): boolean {
+        switch (sensor) {
+            case LineSensor.Left: return __lineRead(lsPinLeft);
+            case LineSensor.Right: return __lineRead(lsPinRight);
+            case LineSensor.Middle: return lsHasMiddle ? __lineRead(lsPinMiddle) : false;
+        }
+        return false;
+    }
+
+    /**
+     * true if no sensor sees the line (gap, or robot left the line)
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=189
+    //% blockId=nezhaV2_line_lost
+    //% block="line lost"
+    export function lineLost(): boolean {
+        if (lineSeen(LineSensor.Left) || lineSeen(LineSensor.Right)) return false;
+        if (lsHasMiddle && lineSeen(LineSensor.Middle)) return false;
+        return true;
+    }
+
+    /**
+     * true at a perpendicular intersection or a 90 degree corner: both outer sensors see the line
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=188
+    //% blockId=nezhaV2_line_intersection
+    //% block="intersection detected"
+    export function intersectionDetected(): boolean {
+        return lineSeen(LineSensor.Left) && lineSeen(LineSensor.Right);
+    }
+
+    /**
+     * true at a 90 degree corner in the given direction: only that side sees the line
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=187
+    //% blockId=nezhaV2_line_corner
+    //% block="90° corner to the %direction detected"
+    export function cornerDetected(direction: TurnDirection): boolean {
+        if (direction == TurnDirection.Left) {
+            return lineSeen(LineSensor.Left) && !lineSeen(LineSensor.Right);
+        }
+        return lineSeen(LineSensor.Right) && !lineSeen(LineSensor.Left);
+    }
+
+    /**
+     * true if the colour sensor sees the given field colour (green marker, red goal tile, silver evacuation zone)
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=186
+    //% blockId=nezhaV2_line_fieldcolor
+    //% block="colour sensor sees %color"
+    export function fieldColorIs(color: FieldColor): boolean {
+        let hue = 0;
+        let brightness = 0;
+        let r = 0, g = 0, b = 0;
+        if (lineColorSource == ColorSource.PlanetX) {
+            hue = planetXColorHue();
+            r = planetXColorValue(ColorChannel.Red);
+            g = planetXColorValue(ColorChannel.Green);
+            b = planetXColorValue(ColorChannel.Blue);
+            brightness = pxRaw[0];
+        } else {
+            hue = colorSensorHue();
+            r = colorSensorValue(ColorChannel.Red);
+            g = colorSensorValue(ColorChannel.Green);
+            b = colorSensorValue(ColorChannel.Blue);
+            brightness = colorSensorValue(ColorChannel.Brightness);
+        }
+        let max = Math.max(r, Math.max(g, b));
+        let min = Math.min(r, Math.min(g, b));
+        let saturation = max > 0 ? (max - min) / max : 0;
+        switch (color) {
+            case FieldColor.Green: return saturation >= 0.25 && hue >= 75 && hue < 170;
+            case FieldColor.Red: return saturation >= 0.25 && (hue < 20 || hue >= 330);
+            case FieldColor.Black: return brightness < lineDarkLevel;
+            case FieldColor.White: return brightness >= lineBrightLevel && saturation < 0.25;
+            // silver reflects much more strongly than the white floor and stays grey
+            case FieldColor.Silver: return brightness >= lineSilverLevel && saturation < 0.25;
+        }
+        return false;
+    }
+
+    let lineDarkLevel = 400;
+    let lineBrightLevel = 1200;
+    let lineSilverLevel = 2600;
+
+    /**
+     * Brightness thresholds for black, white and silver (read them out with the colour sensor blocks first)
+     * @param dark below this value counts as black, eg: 400
+     * @param bright from this value counts as white, eg: 1200
+     * @param silver from this value counts as silver, eg: 2600
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Setup"
+    //% weight=195
+    //% blockId=nezhaV2_line_levels
+    //% block="brightness thresholds black < %dark white ≥ %bright silver ≥ %silver"
+    //% inlineInputMode=inline
+    export function setFieldColorLevels(dark: number, bright: number, silver: number): void {
+        lineDarkLevel = dark;
+        lineBrightLevel = bright;
+        lineSilverLevel = silver;
+    }
+
+    /**
+     * Tilt of the robot in degrees (positive = nose up): ramps up to 25°, seesaws up to 20°
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=185
+    //% blockId=nezhaV2_line_tilt
+    //% block="tilt angle (°)"
+    export function tiltAngle(): number {
+        return input.rotation(Rotation.Pitch);
+    }
+
+    /**
+     * One step of line following - use it inside a loop
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Drive"
+    //% weight=180
+    //% blockId=nezhaV2_line_follow_step
+    //% block="follow the line at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=40
+    export function followLineStep(speed: number): void {
+        let left = lineSeen(LineSensor.Left);
+        let right = lineSeen(LineSensor.Right);
+        let inner = Math.round(speed * (1 - lineGain));
+        if (left && !right) {
+            driveSteer(inner, speed);
+        } else if (right && !left) {
+            driveSteer(speed, inner);
+        } else {
+            driveSteer(speed, speed);
+        }
+    }
+
+    /**
+     * Follows the line for the given time
+     * @param ms duration in milliseconds, eg: 1000
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Drive"
+    //% weight=179
+    //% blockId=nezhaV2_line_follow_ms
+    //% block="follow the line at %speed \\% for %ms ms"
+    //% speed.min=0 speed.max=100 speed.defl=40 ms.defl=1000
+    //% inlineInputMode=inline
+    export function followLineFor(speed: number, ms: number): void {
+        let end = input.runningTime() + ms;
+        while (input.runningTime() < end) {
+            followLineStep(speed);
+            basic.pause(10);
+        }
+        driveStop();
+    }
+
+    // estimated driving time for a distance, from wheel circumference and speed
+    function __driveTimeMs(cm: number, speed: number): number {
+        if (degreeToDistance > 0 && speed > 0) {
+            let cmPerSecond = speed * 9 / 360 * degreeToDistance;
+            if (cmPerSecond > 0) {
+                return cm / cmPerSecond * 1000;
+            }
+        }
+        return cm * 100; // fallback without wheel circumference
+    }
+
+    /**
+     * Drives straight ahead over a gap (max. 20 cm by the rules) until the line is found again
+     * @param maxCm how far to search at most, eg: 25
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Manoeuvres"
+    //% weight=170
+    //% blockId=nezhaV2_line_gap
+    //% block="bridge gap at %speed \\% up to %maxCm cm"
+    //% speed.min=0 speed.max=100 speed.defl=35 maxCm.defl=25
+    //% inlineInputMode=inline
+    export function bridgeGap(speed: number, maxCm: number): boolean {
+        let end = input.runningTime() + __driveTimeMs(maxCm, speed);
+        driveStart(VerticallDirection.Up, speed);
+        while (input.runningTime() < end) {
+            if (!lineLost()) {
+                driveStop();
+                return true;
+            }
+            basic.pause(5);
+        }
+        driveStop();
+        return false;
+    }
+
+    /**
+     * Turns on the spot until a line sensor finds the line again
+     * @param maxAngle largest angle to turn, eg: 120
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Manoeuvres"
+    //% weight=169
+    //% blockId=nezhaV2_line_turn_until
+    //% block="turn %direction at %speed \\% until the line is found (max %maxAngle °)"
+    //% speed.min=0 speed.max=100 speed.defl=30 maxAngle.defl=120
+    //% inlineInputMode=inline
+    export function turnUntilLine(direction: TurnDirection, speed: number, maxAngle: number): boolean {
+        // estimated turning time from the wheelbase
+        let ms = 1500;
+        if (wheelBaseDistance > 0 && degreeToDistance > 0) {
+            let arc = maxAngle * Math.PI / 180 * (wheelBaseDistance / 2);
+            ms = __driveTimeMs(arc, speed);
+        }
+        let end = input.runningTime() + ms;
+        if (direction == TurnDirection.Right) {
+            driveSteer(speed, -speed);
+        } else {
+            driveSteer(-speed, speed);
+        }
+        // first leave the current line, then look for the new one
+        basic.pause(150);
+        while (input.runningTime() < end) {
+            if (direction == TurnDirection.Right ? lineSeen(LineSensor.Right) : lineSeen(LineSensor.Left)) {
+                driveStop();
+                return true;
+            }
+            if (lsHasMiddle && lineSeen(LineSensor.Middle)) {
+                driveStop();
+                return true;
+            }
+            basic.pause(5);
+        }
+        driveStop();
+        return false;
+    }
+
+    /**
+     * Searches for the line by sweeping left and right (after a gap, a corner or an obstacle)
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Manoeuvres"
+    //% weight=168
+    //% blockId=nezhaV2_line_search
+    //% block="search for the line at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=30
+    export function searchLine(speed: number): boolean {
+        if (!lineLost()) return true;
+        if (turnUntilLine(TurnDirection.Left, speed, 60)) return true;
+        if (turnUntilLine(TurnDirection.Right, speed, 120)) return true;
+        if (turnUntilLine(TurnDirection.Left, speed, 60)) return true;
+        return false;
+    }
+
+    /**
+     * Crosses an intersection: drives onto the intersection, then leaves it in the given direction and picks the line up again
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Manoeuvres"
+    //% weight=167
+    //% blockId=nezhaV2_line_cross
+    //% block="take intersection %direction at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=35
+    //% inlineInputMode=inline
+    export function crossIntersection(direction: ExitDirection, speed: number): boolean {
+        // move the wheels onto the centre of the intersection
+        driveStart(VerticallDirection.Up, speed);
+        basic.pause(__driveTimeMs(8, speed));
+        driveStop();
+        if (direction == ExitDirection.Left) {
+            return turnUntilLine(TurnDirection.Left, speed, 150);
+        } else if (direction == ExitDirection.Right) {
+            return turnUntilLine(TurnDirection.Right, speed, 150);
+        }
+        // straight ahead: there may be a gap right after the intersection
+        if (lineLost()) {
+            return bridgeGap(speed, 25);
+        }
+        return true;
+    }
+
+    /**
+     * true if the colour sensor sees a green marker (marker is placed just before the intersection)
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Sensors"
+    //% weight=184
+    //% blockId=nezhaV2_line_marker
+    //% block="green marker detected"
+    export function greenMarkerSeen(): boolean {
+        return fieldColorIs(FieldColor.Green);
+    }
+
+    /**
+     * Drives around an obstacle (at least 15 cm high, 25 cm free space around it) and looks for the line again
+     * @param sideCm how far to drive sideways, eg: 20
+     * @param aroundCm how far to drive past the obstacle, eg: 30
+     */
+    //% subcategory="Rescue Line" color=#00B0A0 group="Manoeuvres"
+    //% weight=165
+    //% blockId=nezhaV2_line_avoid
+    //% block="drive around obstacle to the %direction at %speed \\% (%sideCm cm sideways, %aroundCm cm past)"
+    //% speed.min=0 speed.max=100 speed.defl=35 sideCm.defl=20 aroundCm.defl=30
+    //% inlineInputMode=inline
+    export function avoidObstacle(direction: TurnDirection, speed: number, sideCm: number, aroundCm: number): boolean {
+        let away = direction;
+        let back = direction == TurnDirection.Left ? TurnDirection.Right : TurnDirection.Left;
+        driveTurn(away, 90, speed);
+        driveStart(VerticallDirection.Up, speed);
+        basic.pause(__driveTimeMs(sideCm, speed));
+        driveStop();
+        driveTurn(back, 90, speed);
+        driveStart(VerticallDirection.Up, speed);
+        basic.pause(__driveTimeMs(aroundCm, speed));
+        driveStop();
+        driveTurn(back, 90, speed);
+        // drive back towards the line until a sensor finds it
+        return bridgeGap(speed, sideCm + 15);
+    }
+
     //% group="export functions"
     //% weight=320
     //%block="version number"
