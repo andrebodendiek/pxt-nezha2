@@ -503,7 +503,7 @@ namespace nezhaV2 {
      * Measures the distance with an ELECFREAKS ultrasonic sensor on an RJ11 port (0 = no echo / out of range)
      * @param port RJ11 port of the sensor, eg: nezhaV2.RJPort.J1
      */
-    //% subcategory="Ultrasonic sensor" group="RJ11 port"
+    //% subcategory="Ultrasonic sensor" color=#00A0E9 group="RJ11 port"
     //% weight=300
     //% blockId=nezhaV2_ultrasonic_distance
     //% block="ultrasonic sensor %port distance in %unit"
@@ -525,7 +525,7 @@ namespace nezhaV2 {
      * @param port RJ11 port of the sensor, eg: nezhaV2.RJPort.J1
      * @param value threshold distance, eg: 10
      */
-    //% subcategory="Ultrasonic sensor" group="RJ11 port"
+    //% subcategory="Ultrasonic sensor" color=#00A0E9 group="RJ11 port"
     //% weight=299
     //% blockId=nezhaV2_ultrasonic_obstacle
     //% block="ultrasonic sensor %port obstacle closer than %value %unit"
@@ -541,7 +541,7 @@ namespace nezhaV2 {
      * @param trig trigger pin, eg: DigitalPin.P1
      * @param echo echo pin, eg: DigitalPin.P2
      */
-    //% subcategory="Ultrasonic sensor" group="Free pins"
+    //% subcategory="Ultrasonic sensor" color=#00A0E9 group="Free pins"
     //% weight=290
     //% blockId=nezhaV2_ultrasonic_distance_pins
     //% block="ultrasonic sensor trig %trig echo %echo distance in %unit"
@@ -686,7 +686,7 @@ namespace nezhaV2 {
     /**
      * Reads a colour channel (0-255) or the brightness (0-100 %, raw value if not calibrated)
      */
-    //% subcategory="Grove color sensor" group="Measure"
+    //% subcategory="Grove color sensor" color=#4CAF50 group="Measure"
     //% weight=280
     //% blockId=nezhaV2_color_value
     //% block="Grove color sensor %channel"
@@ -704,7 +704,7 @@ namespace nezhaV2 {
     /**
      * Hue of the measured colour in degrees (0 = red, 120 = green, 240 = blue)
      */
-    //% subcategory="Grove color sensor" group="Measure"
+    //% subcategory="Grove color sensor" color=#4CAF50 group="Measure"
     //% weight=279
     //% blockId=nezhaV2_color_hue
     //% block="Grove color sensor hue (0-360°)"
@@ -716,7 +716,7 @@ namespace nezhaV2 {
     /**
      * Checks whether the sensor detects the given colour. Calibrate white first for reliable black/white detection.
      */
-    //% subcategory="Grove color sensor" group="Detect"
+    //% subcategory="Grove color sensor" color=#4CAF50 group="Detect"
     //% weight=270
     //% blockId=nezhaV2_color_is
     //% block="Grove color sensor detects %color"
@@ -751,7 +751,7 @@ namespace nezhaV2 {
     /**
      * Stores the current measurement as white reference. Hold the sensor over a white surface.
      */
-    //% subcategory="Grove color sensor" group="Setup"
+    //% subcategory="Grove color sensor" color=#4CAF50 group="Setup"
     //% weight=260
     //% blockId=nezhaV2_color_calibrate
     //% block="Grove color sensor calibrate white"
@@ -765,7 +765,7 @@ namespace nezhaV2 {
     /**
      * true if a Grove I2C colour sensor (v1.2 or v2.0) was found
      */
-    //% subcategory="Grove color sensor" group="Setup"
+    //% subcategory="Grove color sensor" color=#4CAF50 group="Setup"
     //% weight=259
     //% blockId=nezhaV2_color_connected
     //% block="Grove color sensor connected"
@@ -798,7 +798,7 @@ namespace nezhaV2 {
     /**
      * Assigns the two drive motors and their mounting direction. Set a motor to "reversed" if its wheel turns backwards.
      */
-    //% subcategory="Drive" group="Setup"
+    //% subcategory="Drive" color=#F7931E group="Setup"
     //% weight=250
     //% blockId=nezhaV2_drive_setup
     //% block="drive setup: left motor %left %leftMode right motor %right %rightMode"
@@ -813,7 +813,7 @@ namespace nezhaV2 {
     /**
      * Both motors drive in the same direction until they are stopped
      */
-    //% subcategory="Drive" group="Drive"
+    //% subcategory="Drive" color=#F7931E group="Drive"
     //% weight=240
     //% blockId=nezhaV2_drive_start
     //% block="drive %direction at %speed \\%"
@@ -829,7 +829,7 @@ namespace nezhaV2 {
     /**
      * Both motors drive in the same direction for the given distance, angle or time
      */
-    //% subcategory="Drive" group="Drive"
+    //% subcategory="Drive" color=#F7931E group="Drive"
     //% weight=239
     //% blockId=nezhaV2_drive_move
     //% block="drive %direction at %speed \\% for %value %unit"
@@ -863,7 +863,7 @@ namespace nezhaV2 {
     /**
      * Sets both wheel speeds separately (-100 to 100 %), e.g. for curves or turning on the spot
      */
-    //% subcategory="Drive" group="Drive"
+    //% subcategory="Drive" color=#F7931E group="Drive"
     //% weight=238
     //% blockId=nezhaV2_drive_steer
     //% block="drive with left wheel %speedLeft \\% right wheel %speedRight \\%"
@@ -891,7 +891,7 @@ namespace nezhaV2 {
      * @param perimeter wheel circumference, eg: 20
      * @param wheelBase distance between the two wheels, eg: 12
      */
-    //% subcategory="Drive" group="Setup"
+    //% subcategory="Drive" color=#F7931E group="Setup"
     //% weight=249
     //% blockId=nezhaV2_drive_geometry
     //% block="drive dimensions: wheel circumference %perimeter wheelbase %wheelBase %unit"
@@ -905,7 +905,7 @@ namespace nezhaV2 {
      * Correction factor for turning on the spot: turned too little -> increase, turned too much -> decrease
      * @param factor correction factor, eg: 1
      */
-    //% subcategory="Drive" group="Setup"
+    //% subcategory="Drive" color=#F7931E group="Setup"
     //% weight=248
     //% blockId=nezhaV2_drive_turn_calibration
     //% block="drive turn correction factor %factor"
@@ -919,7 +919,7 @@ namespace nezhaV2 {
      * Turns on the spot by the given angle (both wheels run in opposite directions). Requires the drive dimensions.
      * @param angle angle in degrees, eg: 90
      */
-    //% subcategory="Drive" group="Drive"
+    //% subcategory="Drive" color=#F7931E group="Drive"
     //% weight=236
     //% blockId=nezhaV2_drive_turn
     //% block="turn %direction by %angle ° at %speed \\%"
@@ -946,7 +946,7 @@ namespace nezhaV2 {
     /**
      * Turns exactly 90° on the spot. Requires the drive dimensions.
      */
-    //% subcategory="Drive" group="Drive"
+    //% subcategory="Drive" color=#F7931E group="Drive"
     //% weight=235
     //% blockId=nezhaV2_drive_turn90
     //% block="turn 90° %direction at %speed \\%"
@@ -958,7 +958,7 @@ namespace nezhaV2 {
     /**
      * Stops both drive motors
      */
-    //% subcategory="Drive" group="Drive"
+    //% subcategory="Drive" color=#F7931E group="Drive"
     //% weight=237
     //% blockId=nezhaV2_drive_stop
     //% block="stop driving"
@@ -1080,7 +1080,7 @@ namespace nezhaV2 {
     /**
      * Hue of the Planet X colour sensor in degrees (0 = red, 120 = green, 240 = blue)
      */
-    //% subcategory="Planet X color sensor" group="Measure"
+    //% subcategory="Planet X color sensor" color=#9C27B0 group="Measure"
     //% weight=220
     //% blockId=nezhaV2_px_color_hue
     //% block="Planet X color sensor hue (0-360°)"
@@ -1093,7 +1093,7 @@ namespace nezhaV2 {
     /**
      * Reads a colour channel (0-255) or the brightness (raw value of the clear channel) of the Planet X colour sensor
      */
-    //% subcategory="Planet X color sensor" group="Measure"
+    //% subcategory="Planet X color sensor" color=#9C27B0 group="Measure"
     //% weight=219
     //% blockId=nezhaV2_px_color_value
     //% block="Planet X color sensor %channel"
@@ -1106,7 +1106,7 @@ namespace nezhaV2 {
     /**
      * Checks whether the Planet X colour sensor detects the given colour
      */
-    //% subcategory="Planet X color sensor" group="Detect"
+    //% subcategory="Planet X color sensor" color=#9C27B0 group="Detect"
     //% weight=218
     //% blockId=nezhaV2_px_color_is
     //% block="Planet X color sensor detects %color"
@@ -1129,7 +1129,7 @@ namespace nezhaV2 {
     /**
      * true if a Planet X colour sensor was found
      */
-    //% subcategory="Planet X color sensor" group="Setup"
+    //% subcategory="Planet X color sensor" color=#9C27B0 group="Setup"
     //% weight=217
     //% blockId=nezhaV2_px_color_connected
     //% block="Planet X color sensor connected"
