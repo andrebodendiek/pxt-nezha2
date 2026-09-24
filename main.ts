@@ -1594,6 +1594,193 @@ namespace nezhaV2 {
         return bridgeGap(speed, sideCm + 15);
     }
 
+    // ===================== OLED display (SSD1306, I2C) =====================
+    // own driver, no external extension needed
+    // 5x7 font for ASCII 32..126, 5 bytes per character (bit 0 = top row)
+
+    const OLED_FONT = hex`00000000005E000000000600060000143C751F04005C7C74000E1A7C5820304E5262500600000000007F000000003E000000000C1E120010107C1010004000000010101000000040000000006018060018664A7E0000427E40004062524E004052527E002028267E20404E4A7A00187E5272000242320E00207E527E00044E4A3E000048000000004800000000303048002828282828484830300000025A0600784C343438603C263840007E527E00107E4242007E42423C00007E525200007E12120018664272007E10107E0000427E42004042423E007E181C6240007E4040407E0E180E7E7E0E187E001866427E00007E0A0E041866427E007E0A0A3E40044E5A720002027E02021E60407E00023C601C021E7018700E4026182640020C78060000625A4642007F410000000C304000417F0000000004020400000000000000000000002078587800007F48780000784848003078487F00307858580000087F09003078487800007F08780000487940000008790000007F10680000017F4000780878087000780878002078487800007848780030784878007818080800005848680008087C480000784078000830403800186030601800683048000030603800004848480000087F41007F0000000000417F08001010101010`;
+
+    let oledAddr = 0x3C;
+    let oledReady = false;
+    let oledBig = false;
+
+    function __oledCmd(c: number): void {
+        let b = pins.createBuffer(2);
+        b[0] = 0x00;
+        b[1] = c;
+        pins.i2cWriteBuffer(oledAddr, b);
+    }
+
+    function __oledPos(col: number, page: number): void {
+        __oledCmd(0xB0 | page);
+        __oledCmd(0x00 | (col & 0x0F));
+        __oledCmd(0x10 | (col >> 4));
+    }
+
+    // writes one page (row of 8 pixels) starting at column 0
+    function __oledWritePage(page: number, data: Buffer): void {
+        __oledPos(0, page);
+        let out = pins.createBuffer(data.length + 1);
+        out[0] = 0x40;
+        for (let i = 0; i < data.length; i++) {
+            out[i + 1] = data[i];
+        }
+        pins.i2cWriteBuffer(oledAddr, out);
+    }
+
+    // doubles the pixels of a column: half 0 = upper half, half 1 = lower half
+    function __oledStretch(b: number, half: number): number {
+        let out = 0;
+        for (let i = 0; i < 4; i++) {
+            if ((b >> (half * 4 + i)) & 1) {
+                out |= 3 << (i * 2);
+            }
+        }
+        return out;
+    }
+
+    function __oledFontByte(charCode: number, column: number): number {
+        if (charCode < 32 || charCode > 126) charCode = 32;
+        return OLED_FONT[(charCode - 32) * 5 + column];
+    }
+
+    /**
+     * Switches the OLED display on (usual I2C address 0x3C = 60, some modules use 0x3D = 61)
+     * @param address I2C address of the display, eg: 60
+     */
+    //% subcategory="Display" color=#5C6BC0 group="Setup"
+    //% weight=160
+    //% blockId=nezhaV2_oled_start
+    //% block="start display (address %address)"
+    //% address.defl=60
+    export function displayStart(address: number): void {
+        oledAddr = address;
+        __oledCmd(0xAE);             // display off
+        __oledCmd(0xD5); __oledCmd(0x80);  // clock
+        __oledCmd(0xA8); __oledCmd(0x3F);  // multiplex 1/64
+        __oledCmd(0xD3); __oledCmd(0x00);  // no offset
+        __oledCmd(0x40);             // start line 0
+        __oledCmd(0x8D); __oledCmd(0x14);  // charge pump on
+        __oledCmd(0x20); __oledCmd(0x02);  // page addressing mode
+        __oledCmd(0xA1);             // segment remap
+        __oledCmd(0xC8);             // scan direction
+        __oledCmd(0xDA); __oledCmd(0x12);  // COM pins
+        __oledCmd(0x81); __oledCmd(0x7F);  // contrast
+        __oledCmd(0xD9); __oledCmd(0xF1);  // precharge
+        __oledCmd(0xDB); __oledCmd(0x40);  // VCOM
+        __oledCmd(0xA4);             // follow RAM
+        __oledCmd(0xA6);             // not inverted
+        __oledCmd(0xAF);             // display on
+        oledReady = true;
+        displayClear();
+    }
+
+    /**
+     * Clears the display
+     */
+    //% subcategory="Display" color=#5C6BC0 group="Setup"
+    //% weight=159
+    //% blockId=nezhaV2_oled_clear
+    //% block="clear display"
+    export function displayClear(): void {
+        if (!oledReady) return;
+        let empty = pins.createBuffer(128);
+        for (let page = 0; page < 8; page++) {
+            __oledWritePage(page, empty);
+        }
+    }
+
+    /**
+     * Large font (10 characters per line, 4 lines) or small font (21 characters, 8 lines)
+     */
+    //% subcategory="Display" color=#5C6BC0 group="Setup"
+    //% weight=158
+    //% blockId=nezhaV2_oled_big
+    //% block="display large font %big"
+    //% big.shadow="toggleOnOff" big.defl=false
+    export function displayBigFont(big: boolean): void {
+        oledBig = big;
+    }
+
+    /**
+     * Writes a line of text (line 0 is at the top). Small font: lines 0-7, large font: lines 0-3.
+     * @param line line number, eg: 0
+     */
+    //% subcategory="Display" color=#5C6BC0 group="Show"
+    //% weight=157
+    //% blockId=nezhaV2_oled_text
+    //% block="show %text in line %line"
+    //% line.min=0 line.max=7 line.defl=0
+    //% inlineInputMode=inline
+    export function displayText(text: string, line: number): void {
+        if (!oledReady) return;
+        if (line < 0) line = 0;
+        if (oledBig) {
+            if (line > 3) line = 3;
+            let top = pins.createBuffer(128);
+            let bottom = pins.createBuffer(128);
+            let x = 0;
+            for (let n = 0; n < text.length && x <= 116; n++) {
+                let code = text.charCodeAt(n);
+                for (let c = 0; c < 5; c++) {
+                    let b = __oledFontByte(code, c);
+                    top[x] = __oledStretch(b, 0);
+                    top[x + 1] = top[x];
+                    bottom[x] = __oledStretch(b, 1);
+                    bottom[x + 1] = bottom[x];
+                    x += 2;
+                }
+                x += 2; // gap between characters
+            }
+            __oledWritePage(line * 2, top);
+            __oledWritePage(line * 2 + 1, bottom);
+        } else {
+            if (line > 7) line = 7;
+            let row = pins.createBuffer(128);
+            let pos = 0;
+            for (let n = 0; n < text.length && pos <= 122; n++) {
+                let code = text.charCodeAt(n);
+                for (let c = 0; c < 5; c++) {
+                    row[pos + c] = __oledFontByte(code, c);
+                }
+                pos += 6; // 5 pixels plus a gap
+            }
+            __oledWritePage(line, row);
+        }
+    }
+
+    /**
+     * Writes a label and a value, e.g. "Distance: 23"
+     * @param line line number, eg: 0
+     */
+    //% subcategory="Display" color=#5C6BC0 group="Show"
+    //% weight=156
+    //% blockId=nezhaV2_oled_value
+    //% block="show %label = %value in line %line"
+    //% line.min=0 line.max=7 line.defl=0
+    //% inlineInputMode=inline
+    export function displayValue(label: string, value: number, line: number): void {
+        displayText(label + ": " + value, line);
+    }
+
+    /**
+     * Shows the state of the line sensors and the drive speed - handy while tuning
+     * @param speed current speed, eg: 40
+     * @param line line number, eg: 0
+     */
+    //% subcategory="Display" color=#5C6BC0 group="Show"
+    //% weight=155
+    //% blockId=nezhaV2_oled_linestate
+    //% block="show line sensor state at %speed \\% in line %line"
+    //% speed.min=0 speed.max=100 speed.defl=40 line.min=0 line.max=7 line.defl=0
+    //% inlineInputMode=inline
+    export function displayLineState(speed: number, line: number): void {
+        let l = lineSeen(LineSensor.Left) ? "1" : "0";
+        let m = lsHasMiddle ? (lineSeen(LineSensor.Middle) ? "1" : "0") : "-";
+        let r = lineSeen(LineSensor.Right) ? "1" : "0";
+        displayText("L" + l + " M" + m + " R" + r + "  v" + speed + "%", line);
+    }
+
     //% group="export functions"
     //% weight=320
     //%block="version number"

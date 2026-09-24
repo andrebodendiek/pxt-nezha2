@@ -58,5 +58,16 @@
   "nezhaV2.crossIntersection": "Nimmt eine Kreuzung: fährt auf die Kreuzung, verlässt sie in der angegebenen Richtung und nimmt die Linie wieder auf",
   "nezhaV2.avoidObstacle": "Umfährt ein Hindernis (mind. 15 cm hoch, 25 cm Freiraum ringsum) und sucht danach die Linie",
   "nezhaV2.avoidObstacle|param|sideCm": "wie weit seitlich ausgewichen wird",
-  "nezhaV2.avoidObstacle|param|aroundCm": "wie weit am Hindernis vorbeigefahren wird"
+  "nezhaV2.avoidObstacle|param|aroundCm": "wie weit am Hindernis vorbeigefahren wird",
+  "nezhaV2.displayStart": "Schaltet das OLED-Display ein (übliche I2C-Adresse 0x3C = 60, manche Module nutzen 0x3D = 61)",
+  "nezhaV2.displayStart|param|address": "I2C-Adresse des Displays",
+  "nezhaV2.displayClear": "Löscht das Display",
+  "nezhaV2.displayBigFont": "Große Schrift (ca. 10 Zeichen pro Zeile) oder kleine Schrift (ca. 21 Zeichen)",
+  "nezhaV2.displayText": "Schreibt eine Textzeile (Zeile 0 ist oben)",
+  "nezhaV2.displayText|param|line": "Zeilennummer",
+  "nezhaV2.displayValue": "Schreibt eine Beschriftung mit Wert, z. B. „Entfernung: 23“",
+  "nezhaV2.displayValue|param|line": "Zeilennummer",
+  "nezhaV2.displayLineState": "Zeigt den Zustand der Liniensensoren und die Fahrgeschwindigkeit – praktisch beim Einstellen",
+  "nezhaV2.displayLineState|param|speed": "aktuelle Geschwindigkeit",
+  "nezhaV2.displayLineState|param|line": "Zeilennummer"
 }
