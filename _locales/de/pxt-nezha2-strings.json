@@ -1,63 +1,48 @@
 {
     "nezhaV2.DelayMode.AutoDelayStatus|block": "automatisch warten",
     "nezhaV2.DelayMode.NoDelay|block": "nicht warten",
-
     "nezhaV2.MovementDirection.CW|block": "im Uhrzeigersinn",
     "nezhaV2.MovementDirection.CCW|block": "gegen den Uhrzeigersinn",
-
     "nezhaV2.SportsMode.Circle|block": "Umdrehungen",
     "nezhaV2.SportsMode.Degree|block": "Grad",
     "nezhaV2.SportsMode.Second|block": "Sekunden",
-
     "nezhaV2.Uint.cm|block": "cm",
     "nezhaV2.Uint.inch|block": "Zoll",
-
     "nezhaV2.DistanceAndAngleUnit.Circle|block": "Umdrehungen",
     "nezhaV2.DistanceAndAngleUnit.Degree|block": "Grad",
     "nezhaV2.DistanceAndAngleUnit.Second|block": "Sekunden",
     "nezhaV2.DistanceAndAngleUnit.cm|block": "cm",
     "nezhaV2.DistanceAndAngleUnit.inch|block": "Zoll",
-
     "nezhaV2.ServoMotionMode.ShortPath|block": "auf kürzestem Weg",
     "nezhaV2.ServoMotionMode.CW|block": "im Uhrzeigersinn",
     "nezhaV2.ServoMotionMode.CCW|block": "gegen den Uhrzeigersinn",
-
     "nezhaV2.VerticallDirection.Up|block": "vorwärts",
     "nezhaV2.VerticallDirection.Down|block": "rückwärts",
-
     "nezhaV2.move|block": "drehe %motor mit %speed \\% %direction für %value %mode || %isDelay",
     "nezhaV2.moveToAbsAngle|block": "drehe %motor %turnMode auf Winkel %angle || %isDelay",
     "nezhaV2.stop|block": "stoppe Motor %motor",
     "nezhaV2.start|block": "starte %motor mit Geschwindigkeit %speed \\%",
-
     "nezhaV2.readAbsAngle|block": "absoluter Winkel von %motor",
     "nezhaV2.readRelAngle|block": "relativer Winkel von %motor",
     "nezhaV2.readSpeed|block": "Geschwindigkeit von %motor (Umdrehungen/s)",
-
     "nezhaV2.reset|block": "setze %motor auf Nullposition zurück",
     "nezhaV2.resetRelAngleValue|block": "setze relativen Winkel von %motor auf null",
-
     "nezhaV2.setComboMotor|block": "setze Fahrmotoren: linkes Rad %motor_l rechtes Rad %motor_r",
     "nezhaV2.comboRun|block": "fahre mit %speed \\% Geschwindigkeit %direction",
     "nezhaV2.comboStop|block": "stoppe Fahrt",
-
     "nezhaV2.setWheelPerimeter|block": "setze Radumfang auf %value %unit",
     "nezhaV2.setWheelBase|block": "setze Spurweite (Abstand zwischen den Rädern) auf %value %unit",
     "nezhaV2.setComboRotateCalibration|block": "setze Kalibrierfaktor für Drehung auf %factor",
-
     "nezhaV2.comboMove|block": "fahre mit %speed \\% Geschwindigkeit %direction für %value %uint",
     "nezhaV2.comboRotate|block": "drehe Fahrzeug um %angle Grad mit %speed \\% Geschwindigkeit",
     "nezhaV2.comboStart|block": "starte Fahrmotoren: linkes Rad %speed_l \\% rechtes Rad %speed_r \\%",
-
     "nezhaV2.readVersion|block": "Versionsnummer",
-
     "nezhaV2.ultrasonicDistance|block": "Ultraschallsensor %port Entfernung in %unit",
     "nezhaV2.ultrasonicObstacle|block": "Ultraschallsensor %port Hindernis näher als %value %unit",
     "nezhaV2.ultrasonicDistancePins|block": "Ultraschallsensor Trig %trig Echo %echo Entfernung in %unit",
     "{id:subcategory}Ultrasonic sensor": "Ultraschallsensor",
     "{id:group}RJ11 port": "RJ11-Anschluss",
     "{id:group}Free pins": "Freie Pins",
-
     "nezhaV2.ColorChannel.Red|block": "Rot",
     "nezhaV2.ColorChannel.Green|block": "Grün",
     "nezhaV2.ColorChannel.Blue|block": "Blau",
@@ -156,7 +141,6 @@
     "{id:group}Measure": "Messen",
     "{id:group}Detect": "Farbe erkennen",
     "{id:group}Setup": "Einrichten",
-
     "nezhaV2.MountMode.Normal|block": "normal",
     "nezhaV2.MountMode.Reversed|block": "umgekehrt",
     "nezhaV2.driveSetup|block": "Antrieb einrichten: linker Motor %left %leftMode rechter Motor %right %rightMode",
@@ -172,11 +156,32 @@
     "nezhaV2.driveTurn90|block": "drehe 90° nach %direction mit %speed \\%",
     "{id:subcategory}Drive": "Antrieb",
     "{id:group}Drive": "Fahren",
-
     "{id:group}Basic functions": "Grundfunktionen",
     "{id:group}Application functions": "Fahrfunktionen",
+    "{id:subcategory}Planet X line sensor": "Planet-X-Liniensensor",
+    "{id:group}2-way sensor": "2-Kanal-Sensor",
+    "{id:group}4-way sensor": "4-Kanal-Sensor (Trackbit)",
+    "{id:group}Evaluate": "Auswerten",
+    "nezhaV2.PxLineSide.Left|block": "links",
+    "nezhaV2.PxLineSide.Right|block": "rechts",
+    "nezhaV2.pxLineSetup2|block": "Planet-X-2-Kanal-Liniensensor an %port",
+    "nezhaV2.pxLineSetupDual|block": "Planet-X-Liniensensoren: links an %left rechts an %right",
+    "nezhaV2.pxLineSetup4|block": "Planet-X-4-Kanal-Liniensensor (Trackbit) an IIC",
+    "nezhaV2.pxLineMirror|block": "Planet-X-Liniensensor gespiegelt %on",
+    "nezhaV2.pxLineUseForRescueLine|block": "Planet-X-Liniensensor für Rescue-Line-Blöcke verwenden %on",
+    "nezhaV2.pxLine2Seen|block": "Planet X 2-Kanal %side sieht die Linie",
+    "nezhaV2.pxLine2Is|block": "Planet-X-2-Kanal-Liniensensor ist %state",
+    "nezhaV2.pxLine4Seen|block": "Planet X 4-Kanal Kanal %channel sieht die Linie",
+    "nezhaV2.pxLine4Is|block": "Planet X 4 Kanäle sind %state",
+    "nezhaV2.pxLine4Gray|block": "Planet X 4-Kanal Grauwert Kanal %channel",
+    "nezhaV2.pxLinePattern|block": "Planet X Linienmuster",
+    "nezhaV2.pxLinePosition|block": "Planet X Linienposition (-100 … 100)",
+    "nezhaV2.pxLineLost|block": "Planet X Linie verloren",
+    "nezhaV2.pxLineIntersection|block": "Planet X Kreuzung erkannt",
+    "nezhaV2.pxLineCorner|block": "Planet X 90°-Kurve %direction",
+    "nezhaV2.pxLineFollow|block": "Planet X folge der Linie mit %speed \\%",
+    "nezhaV2.displayPxLine|block": "OLED zeige Planet-X-Liniensensor in Zeile %line",
     "{id:group}export functions": "Weitere Funktionen",
-
     "nezhaV2|block": "Nezha V2-ab",
     "{id:category}nezhaV2": "Nezha V2-ab"
 }

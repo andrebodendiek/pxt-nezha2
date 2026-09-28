@@ -1283,6 +1283,22 @@ namespace nezhaV2 {
     //% blockId=nezhaV2_line_seen
     //% block="%sensor line sensor sees the line"
     export function lineSeen(sensor: LineSensor): boolean {
+        if (lsUsePx) {
+            let v = pxLinePattern();
+            if (__pxQuad()) {
+                switch (sensor) {
+                    case LineSensor.Left: return (v & 1) != 0;
+                    case LineSensor.Middle: return (v & 6) != 0;
+                    case LineSensor.Right: return (v & 8) != 0;
+                }
+                return false;
+            }
+            switch (sensor) {
+                case LineSensor.Left: return (v & 1) != 0;
+                case LineSensor.Right: return (v & 2) != 0;
+            }
+            return false;
+        }
         if (lsUseHw871) {
             switch (sensor) {
                 case LineSensor.Left: return hw871Seen(Hw871Channel.S1) || hw871Seen(Hw871Channel.S2);
@@ -1682,7 +1698,10 @@ namespace nezhaV2 {
     //% on.shadow="toggleOnOff" on.defl=true
     export function hw871UseForRescueLine(on: boolean): void {
         lsUseHw871 = on;
-        if (on) lsHasMiddle = hwUsed[2];
+        if (on) {
+            lsUsePx = false;
+            lsHasMiddle = hwUsed[2];
+        }
     }
 
     /**
@@ -1791,6 +1810,379 @@ namespace nezhaV2 {
     //% speed.min=0 speed.max=100 speed.defl=40
     export function hw871Follow(speed: number): void {
         let pos = hw871Position();
+        let turn = Math.round(pos * speed * lineGain / 100);
+        let left = speed + turn;
+        let right = speed - turn;
+        if (left > 100) left = 100; else if (left < -100) left = -100;
+        if (right > 100) right = 100; else if (right < -100) right = -100;
+        driveSteer(left, right);
+    }
+
+    // ===================== Planet X line sensors (ELECFREAKS) =====================
+    // EF05019: 2-way tracking sensor, RJ11, digital, LOW = black line
+    // EF05053: 4-way tracking sensor "Trackbit", IIC address 0x1A, register 4 = channel bits
+    // two EF05019 on two RJ11 ports (left + right) are handled like one 4-way sensor
+
+    export enum PxLineSide {
+        //% block="left"
+        Left = 1,
+        //% block="right"
+        Right = 2
+    }
+
+    export enum PxLine2State {
+        //% block="◌ ◌"
+        None = 0,
+        //% block="● ◌"
+        Left = 1,
+        //% block="◌ ●"
+        Right = 2,
+        //% block="● ●"
+        Both = 3
+    }
+
+    export enum PxLine4Channel {
+        //% block="1"
+        C1 = 1,
+        //% block="2"
+        C2 = 2,
+        //% block="3"
+        C3 = 3,
+        //% block="4"
+        C4 = 4
+    }
+
+    export enum PxLine4State {
+        //% block="◌ ◌ ◌ ◌"
+        S0 = 0,
+        //% block="◌ ● ● ◌"
+        S6 = 6,
+        //% block="◌ ● ◌ ◌"
+        S2 = 2,
+        //% block="◌ ◌ ● ◌"
+        S4 = 4,
+        //% block="● ◌ ◌ ◌"
+        S1 = 1,
+        //% block="● ● ◌ ◌"
+        S3 = 3,
+        //% block="● ● ● ◌"
+        S7 = 7,
+        //% block="● ◌ ● ◌"
+        S5 = 5,
+        //% block="◌ ◌ ◌ ●"
+        S8 = 8,
+        //% block="◌ ◌ ● ●"
+        S12 = 12,
+        //% block="◌ ● ● ●"
+        S14 = 14,
+        //% block="◌ ● ◌ ●"
+        S10 = 10,
+        //% block="● ◌ ◌ ●"
+        S9 = 9,
+        //% block="● ● ● ●"
+        S15 = 15,
+        //% block="● ◌ ● ●"
+        S13 = 13,
+        //% block="● ● ◌ ●"
+        S11 = 11
+    }
+
+    const PXLINE_ADDR = 0x1A;
+    let pxLineType = 0;          // 0 = not set up, 2 = 2-way (RJ11), 4 = 4-way Trackbit (IIC), 5 = two 2-way sensors
+    let pxLinePins = [DigitalPin.P1, DigitalPin.P8, DigitalPin.P2, DigitalPin.P12];
+    let pxLineMirrored = false;
+    let pxLineLastPos = 0;
+    let lsUsePx = false;
+
+    function __pxTrackbitBits(): number {
+        pins.i2cWriteNumber(PXLINE_ADDR, 4, NumberFormat.Int8LE);
+        return pins.i2cReadNumber(PXLINE_ADDR, NumberFormat.UInt8LE, false) & 0x0F;
+    }
+
+    // true if four channels are available (Trackbit or two 2-way sensors)
+    function __pxQuad(): boolean {
+        return pxLineType == 4 || pxLineType == 5;
+    }
+
+    function __pxRjPins(port: RJPort, first: number): void {
+        let a = DigitalPin.P1;
+        let b = DigitalPin.P8;
+        switch (port) {
+            case RJPort.J1: a = DigitalPin.P1; b = DigitalPin.P8; break;
+            case RJPort.J2: a = DigitalPin.P2; b = DigitalPin.P12; break;
+            case RJPort.J3: a = DigitalPin.P13; b = DigitalPin.P14; break;
+            case RJPort.J4: a = DigitalPin.P15; b = DigitalPin.P16; break;
+        }
+        pxLinePins[first] = a;
+        pxLinePins[first + 1] = b;
+        pins.setPull(a, PinPullMode.PullUp);
+        pins.setPull(b, PinPullMode.PullUp);
+    }
+
+    // pattern as seen from behind the robot: bit 0 = leftmost channel
+    function __pxLineBits(): number {
+        let v = 0;
+        if (pxLineType == 2 || pxLineType == 5) {
+            let n = pxLineType == 5 ? 4 : 2;
+            for (let i = 0; i < n; i++) {
+                if (pins.digitalReadPin(pxLinePins[i]) == 0) v |= 1 << i;
+            }
+            // mirrored: swap left and right inside each sensor
+            if (pxLineMirrored) v = ((v & 5) << 1) | ((v & 10) >> 1);
+        } else if (pxLineType == 4) {
+            v = __pxTrackbitBits();
+            if (pxLineMirrored) {
+                v = ((v & 1) << 3) | ((v & 2) << 1) | ((v & 4) >> 1) | ((v & 8) >> 3);
+            }
+        }
+        return v;
+    }
+
+    function __pxRescueMiddle(): void {
+        if (lsUsePx) lsHasMiddle = __pxQuad();
+    }
+
+    /**
+     * 2-way Planet X line sensor (EF05019) on an RJ11 port: first signal = left, second = right
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Setup"
+    //% weight=130
+    //% blockId=nezhaV2_pxline_setup2
+    //% block="Planet X 2-way line sensor on %port"
+    //% port.fieldEditor="gridpicker" port.fieldOptions.columns=4
+    export function pxLineSetup2(port: RJPort): void {
+        __pxRjPins(port, 0);
+        pxLineType = 2;
+        pxLineLastPos = 0;
+        __pxRescueMiddle();
+    }
+
+    /**
+     * Two 2-way Planet X line sensors (EF05019) side by side: they work together like one 4-way sensor.
+     * Channels left to right: left sensor (first, second signal), right sensor (first, second signal)
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Setup"
+    //% weight=129
+    //% blockId=nezhaV2_pxline_setup_dual
+    //% block="Planet X line sensors: left on %left right on %right"
+    //% left.fieldEditor="gridpicker" left.fieldOptions.columns=4
+    //% right.fieldEditor="gridpicker" right.fieldOptions.columns=4
+    //% right.defl=nezhaV2.RJPort.J2
+    //% inlineInputMode=inline
+    export function pxLineSetupDual(left: RJPort, right: RJPort): void {
+        __pxRjPins(left, 0);
+        __pxRjPins(right, 2);
+        pxLineType = 5;
+        pxLineLastPos = 0;
+        __pxRescueMiddle();
+    }
+
+    /**
+     * 4-way Planet X line sensor "Trackbit" (EF05053) on the IIC port. Teach it with its learn button first.
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Setup"
+    //% weight=128
+    //% blockId=nezhaV2_pxline_setup4
+    //% block="Planet X 4-way line sensor (Trackbit) on IIC"
+    export function pxLineSetup4(): void {
+        pxLineType = 4;
+        pxLineLastPos = 0;
+        __pxRescueMiddle();
+    }
+
+    /**
+     * Swaps left and right if the sensor is mounted the other way round (check with the position block)
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Setup"
+    //% weight=127
+    //% blockId=nezhaV2_pxline_mirror
+    //% block="Planet X line sensor mirrored %on"
+    //% on.shadow="toggleOnOff" on.defl=false
+    export function pxLineMirror(on: boolean): void {
+        pxLineMirrored = on;
+    }
+
+    /**
+     * Lets all Rescue Line blocks use the Planet X line sensor.
+     * 2-way: left / right. 4 channels: left = outer left, middle = the two inner ones, right = outer right
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Setup"
+    //% weight=126
+    //% blockId=nezhaV2_pxline_rescue
+    //% block="use Planet X line sensor for the Rescue Line blocks %on"
+    //% on.shadow="toggleOnOff" on.defl=true
+    export function pxLineUseForRescueLine(on: boolean): void {
+        lsUsePx = on;
+        if (on) {
+            lsUseHw871 = false;
+            __pxRescueMiddle();
+        }
+    }
+
+    /**
+     * true if this side of the 2-way sensor is above the black line
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="2-way sensor"
+    //% weight=126
+    //% blockId=nezhaV2_pxline2_seen
+    //% block="Planet X 2-way %side sees the line"
+    export function pxLine2Seen(side: PxLineSide): boolean {
+        if (pxLineType != 2) return false;
+        return (__pxLineBits() & (side == PxLineSide.Left ? 1 : 2)) != 0;
+    }
+
+    /**
+     * true if the 2-way sensor shows exactly this pattern (● = black line, ◌ = floor)
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="2-way sensor"
+    //% weight=125
+    //% blockId=nezhaV2_pxline2_is
+    //% block="Planet X 2-way line sensor is %state"
+    //% state.fieldEditor="gridpicker" state.fieldOptions.columns=2
+    export function pxLine2Is(state: PxLine2State): boolean {
+        if (pxLineType != 2) return false;
+        return __pxLineBits() == state;
+    }
+
+    /**
+     * true if this channel of the 4-way sensor sees the black line (channel number as printed on the sensor)
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="4-way sensor"
+    //% weight=124
+    //% blockId=nezhaV2_pxline4_seen
+    //% block="Planet X 4-way channel %channel sees the line"
+    //% channel.fieldEditor="gridpicker" channel.fieldOptions.columns=4
+    export function pxLine4Seen(channel: PxLine4Channel): boolean {
+        return (__pxTrackbitBits() & (1 << (channel - 1))) != 0;
+    }
+
+    /**
+     * true if the four channels show exactly this pattern, left to right (● = black line, ◌ = floor).
+     * Works with the Trackbit and with two 2-way sensors.
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Evaluate"
+    //% weight=123
+    //% blockId=nezhaV2_pxline4_is
+    //% block="Planet X 4 channels are %state"
+    //% state.fieldEditor="gridpicker" state.fieldOptions.columns=4
+    export function pxLine4Is(state: PxLine4State): boolean {
+        if (!__pxQuad()) return false;
+        return __pxLineBits() == state;
+    }
+
+    /**
+     * Grey value of one channel of the 4-way sensor (0 … 255), useful for checking the learned values
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="4-way sensor"
+    //% weight=122
+    //% blockId=nezhaV2_pxline4_gray
+    //% block="Planet X 4-way channel %channel grey value"
+    //% channel.fieldEditor="gridpicker" channel.fieldOptions.columns=4
+    export function pxLine4Gray(channel: PxLine4Channel): number {
+        pins.i2cWriteNumber(PXLINE_ADDR, channel - 1, NumberFormat.Int8LE);
+        return pins.i2cReadNumber(PXLINE_ADDR, NumberFormat.UInt8LE, false);
+    }
+
+    /**
+     * All channels as one number, left to right: 2-way: left = 1, right = 2. 4 channels: 1, 2, 4, 8
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Evaluate"
+    //% weight=121
+    //% blockId=nezhaV2_pxline_pattern
+    //% block="Planet X line pattern"
+    export function pxLinePattern(): number {
+        return __pxLineBits();
+    }
+
+    /**
+     * Position of the line: -100 = far left, 0 = middle, 100 = far right.
+     * 2-way: 0 while the line runs between the sensors. 4 channels: if no channel sees the line,
+     * the last outer position is kept (sharp curve), otherwise 0 (line between the channels or gap).
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Evaluate"
+    //% weight=120
+    //% blockId=nezhaV2_pxline_position
+    //% block="Planet X line position (-100 … 100)"
+    export function pxLinePosition(): number {
+        let v = __pxLineBits();
+        if (pxLineType == 2) {
+            if (v == 1) pxLineLastPos = -100;
+            else if (v == 2) pxLineLastPos = 100;
+            else pxLineLastPos = 0;
+            return pxLineLastPos;
+        }
+        if (__pxQuad() && v != 0) {
+            // channel positions left to right: -100, -33, 33, 100
+            let sum = 0;
+            let count = 0;
+            if (v & 1) { sum -= 100; count++; }
+            if (v & 2) { sum -= 33; count++; }
+            if (v & 4) { sum += 33; count++; }
+            if (v & 8) { sum += 100; count++; }
+            pxLineLastPos = Math.round(sum / count);
+        } else if (__pxQuad() && Math.abs(pxLineLastPos) < 50) {
+            // lost after an inner channel: line runs between the channels or a gap follows - go straight
+            pxLineLastPos = 0;
+        }
+        return pxLineLastPos;
+    }
+
+    /**
+     * true if no channel sees the line. With the 2-way sensor this is also the normal case while the line runs between the sensors.
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Evaluate"
+    //% weight=119
+    //% blockId=nezhaV2_pxline_lost
+    //% block="Planet X line lost"
+    export function pxLineLost(): boolean {
+        return __pxLineBits() == 0;
+    }
+
+    /**
+     * true at an intersection or T-junction: 2-way: both sides see the line, 4 channels: both outer channels or three channels
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Evaluate"
+    //% weight=118
+    //% blockId=nezhaV2_pxline_cross
+    //% block="Planet X intersection detected"
+    export function pxLineIntersection(): boolean {
+        let v = __pxLineBits();
+        if (pxLineType == 2) return v == 3;
+        if (__pxQuad()) {
+            if ((v & 9) == 9) return true;
+            let n = 0;
+            for (let i = 0; i < 4; i++) if (v & (1 << i)) n++;
+            return n >= 3;
+        }
+        return false;
+    }
+
+    /**
+     * true at a 90° corner: only the outer channel on that side sees the line
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Evaluate"
+    //% weight=117
+    //% blockId=nezhaV2_pxline_corner
+    //% block="Planet X 90° corner to the %direction"
+    export function pxLineCorner(direction: TurnDirection): boolean {
+        let v = __pxLineBits();
+        let leftBit = 1;
+        let rightBit = __pxQuad() ? 8 : 2;
+        if (pxLineType == 0) return false;
+        if (direction == TurnDirection.Left) return (v & leftBit) != 0 && (v & rightBit) == 0;
+        return (v & rightBit) != 0 && (v & leftBit) == 0;
+    }
+
+    /**
+     * One step of line following - use it inside a loop. Steering strength: "line steering strength" block (Rescue Line)
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Drive"
+    //% weight=116
+    //% blockId=nezhaV2_pxline_follow
+    //% block="Planet X follow the line at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=40
+    export function pxLineFollow(speed: number): void {
+        let pos = pxLinePosition();
         let turn = Math.round(pos * speed * lineGain / 100);
         let left = speed + turn;
         let right = speed - turn;
@@ -2062,6 +2454,29 @@ namespace nezhaV2 {
             else t = t + (hw871Seen(c) ? "#" : ".");
         }
         displayText(t + "  pos " + hw871Position(), line);
+    }
+
+    /**
+     * Shows the channels of the Planet X line sensor left to right (# = line, . = floor) and the line position
+     * @param line line number (0-7), eg: 2
+     */
+    //% subcategory="OLED display" color=#5C6BC0 group="Show"
+    //% weight=152
+    //% blockId=nezhaV2_oled_pxline
+    //% block="OLED show Planet X line sensor in line %line"
+    //% line.min=0 line.max=7 line.defl=2
+    export function displayPxLine(line: number): void {
+        if (pxLineType == 0) {
+            displayText("PX: no setup", line);
+            return;
+        }
+        let v = pxLinePattern();
+        let t = "";
+        let n = __pxQuad() ? 4 : 2;
+        for (let c = 0; c < n; c++) {
+            t = t + ((v & (1 << c)) ? "#" : ".");
+        }
+        displayText(t + "  pos " + pxLinePosition(), line);
     }
 
     //% group="export functions"
