@@ -1283,6 +1283,14 @@ namespace nezhaV2 {
     //% blockId=nezhaV2_line_seen
     //% block="%sensor line sensor sees the line"
     export function lineSeen(sensor: LineSensor): boolean {
+        if (lsUseHw871) {
+            switch (sensor) {
+                case LineSensor.Left: return hw871Seen(Hw871Channel.S1) || hw871Seen(Hw871Channel.S2);
+                case LineSensor.Middle: return hw871Seen(Hw871Channel.S3);
+                case LineSensor.Right: return hw871Seen(Hw871Channel.S4) || hw871Seen(Hw871Channel.S5);
+            }
+            return false;
+        }
         switch (sensor) {
             case LineSensor.Left: return __lineRead(lsPinLeft);
             case LineSensor.Right: return __lineRead(lsPinRight);
@@ -1594,6 +1602,203 @@ namespace nezhaV2 {
         return bridgeGap(speed, sideCm + 15);
     }
 
+    // ===================== HW-871 5-channel line sensor (TCRT5000) =====================
+    // Funduino "Line tracking module 3.3V / 5V (TCRT5000) HW-871, 5-channel infrared"
+    // five digital outputs S1 (left outside) ... S5 (right outside)
+
+    export enum Hw871Channel {
+        //% block="S1 (left outside)"
+        S1 = 1,
+        //% block="S2 (left)"
+        S2 = 2,
+        //% block="S3 (middle)"
+        S3 = 3,
+        //% block="S4 (right)"
+        S4 = 4,
+        //% block="S5 (right outside)"
+        S5 = 5
+    }
+
+    let hwPins = [DigitalPin.P1, DigitalPin.P1, DigitalPin.P1, DigitalPin.P1, DigitalPin.P1];
+    let hwUsed = [false, false, false, false, false];
+    let hwBlackLevel = 1;      // most HW-871 modules output HIGH above the black line
+    let hwLastPos = 0;
+    let lsUseHw871 = false;
+
+    /**
+     * Assigns a channel of the HW-871 to a micro:bit pin. Use it once per connected channel.
+     * RJ11 pins: J1 = P1 / P8, J2 = P2 / P12, J3 = P13 / P14, J4 = P15 / P16
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Setup"
+    //% weight=150
+    //% blockId=nezhaV2_hw871_channel
+    //% block="HW-871 channel %channel on pin %pin"
+    //% channel.fieldEditor="gridpicker" channel.fieldOptions.columns=5
+    export function hw871SetChannel(channel: Hw871Channel, pin: DigitalPin): void {
+        hwPins[channel - 1] = pin;
+        hwUsed[channel - 1] = true;
+        pins.setPull(pin, PinPullMode.PullNone);
+    }
+
+    /**
+     * Quick setup with a single RJ11 cable: S2 on the first and S4 on the second signal of the port
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Setup"
+    //% weight=149
+    //% blockId=nezhaV2_hw871_port
+    //% block="HW-871 with S2 and S4 on %port"
+    //% port.fieldEditor="gridpicker" port.fieldOptions.columns=4
+    export function hw871SetupPort(port: RJPort): void {
+        let a = DigitalPin.P1;
+        let b = DigitalPin.P8;
+        switch (port) {
+            case RJPort.J1: a = DigitalPin.P1; b = DigitalPin.P8; break;
+            case RJPort.J2: a = DigitalPin.P2; b = DigitalPin.P12; break;
+            case RJPort.J3: a = DigitalPin.P13; b = DigitalPin.P14; break;
+            case RJPort.J4: a = DigitalPin.P15; b = DigitalPin.P16; break;
+        }
+        hw871SetChannel(Hw871Channel.S2, a);
+        hw871SetChannel(Hw871Channel.S4, b);
+    }
+
+    /**
+     * Which level means "black line". Most HW-871 modules: black = HIGH (1)
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Setup"
+    //% weight=148
+    //% blockId=nezhaV2_hw871_logic
+    //% block="HW-871 logic %logic"
+    export function hw871Logic(logic: LineLogic): void {
+        hwBlackLevel = logic == LineLogic.BlackHigh ? 1 : 0;
+    }
+
+    /**
+     * Lets all Rescue Line blocks use the HW-871: left = S1/S2, middle = S3, right = S4/S5
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Setup"
+    //% weight=147
+    //% blockId=nezhaV2_hw871_rescue
+    //% block="use HW-871 for the Rescue Line blocks %on"
+    //% on.shadow="toggleOnOff" on.defl=true
+    export function hw871UseForRescueLine(on: boolean): void {
+        lsUseHw871 = on;
+        if (on) lsHasMiddle = hwUsed[2];
+    }
+
+    /**
+     * true if the channel is above the black line (false for channels that are not connected)
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Sensors"
+    //% weight=146
+    //% blockId=nezhaV2_hw871_seen
+    //% block="HW-871 %channel sees the line"
+    //% channel.fieldEditor="gridpicker" channel.fieldOptions.columns=5
+    export function hw871Seen(channel: Hw871Channel): boolean {
+        let i = channel - 1;
+        if (i < 0 || i > 4 || !hwUsed[i]) return false;
+        return pins.digitalReadPin(hwPins[i]) == hwBlackLevel;
+    }
+
+    /**
+     * All channels as one number: S1 = 1, S2 = 2, S3 = 4, S4 = 8, S5 = 16 (e.g. 4 = only the middle sees the line)
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Sensors"
+    //% weight=145
+    //% blockId=nezhaV2_hw871_pattern
+    //% block="HW-871 pattern"
+    export function hw871Pattern(): number {
+        let v = 0;
+        for (let c = 1; c <= 5; c++) {
+            if (hw871Seen(c)) v += 1 << (c - 1);
+        }
+        return v;
+    }
+
+    /**
+     * Position of the line under the sensor: -100 = far left, 0 = middle, 100 = far right.
+     * If no channel sees the line, the last known position is returned.
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Sensors"
+    //% weight=144
+    //% blockId=nezhaV2_hw871_position
+    //% block="HW-871 line position (-100 … 100)"
+    export function hw871Position(): number {
+        let sum = 0;
+        let count = 0;
+        for (let c = 1; c <= 5; c++) {
+            if (hw871Seen(c)) {
+                sum += (c - 3) * 50;   // S1 = -100, S2 = -50, S3 = 0, S4 = 50, S5 = 100
+                count++;
+            }
+        }
+        if (count > 0) {
+            hwLastPos = Math.round(sum / count);
+        }
+        return hwLastPos;
+    }
+
+    /**
+     * true if no connected channel sees the line (gap or line left)
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Sensors"
+    //% weight=143
+    //% blockId=nezhaV2_hw871_lost
+    //% block="HW-871 line lost"
+    export function hw871LineLost(): boolean {
+        return hw871Pattern() == 0;
+    }
+
+    function __hwCount(): number {
+        let n = 0;
+        for (let c = 1; c <= 5; c++) {
+            if (hw871Seen(c)) n++;
+        }
+        return n;
+    }
+
+    /**
+     * true at an intersection or T-junction: three or more channels see the line
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Sensors"
+    //% weight=142
+    //% blockId=nezhaV2_hw871_cross
+    //% block="HW-871 intersection detected"
+    export function hw871Intersection(): boolean {
+        return __hwCount() >= 3;
+    }
+
+    /**
+     * true at a 90° corner: the line reaches out to one side only
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Sensors"
+    //% weight=141
+    //% blockId=nezhaV2_hw871_corner
+    //% block="HW-871 90° corner to the %direction"
+    export function hw871Corner(direction: TurnDirection): boolean {
+        let left = hw871Seen(Hw871Channel.S1) || (hw871Seen(Hw871Channel.S2) && !hwUsed[0]);
+        let right = hw871Seen(Hw871Channel.S5) || (hw871Seen(Hw871Channel.S4) && !hwUsed[4]);
+        if (direction == TurnDirection.Left) return left && !right;
+        return right && !left;
+    }
+
+    /**
+     * One step of proportional line following - use it inside a loop. Steering strength: "line steering strength" block.
+     */
+    //% subcategory="HW-871 line sensor" color=#E91E63 group="Drive"
+    //% weight=140
+    //% blockId=nezhaV2_hw871_follow
+    //% block="HW-871 follow the line at %speed \\%"
+    //% speed.min=0 speed.max=100 speed.defl=40
+    export function hw871Follow(speed: number): void {
+        let pos = hw871Position();
+        let turn = Math.round(pos * speed * lineGain / 100);
+        let left = speed + turn;
+        let right = speed - turn;
+        if (left > 100) left = 100; else if (left < -100) left = -100;
+        if (right > 100) right = 100; else if (right < -100) right = -100;
+        driveSteer(left, right);
+    }
+
     // ===================== OLED display (SSD1306, I2C) =====================
     // own driver, no external extension needed
     // 5x7 font for ASCII 32..126, 5 bytes per character (bit 0 = top row)
@@ -1648,7 +1853,7 @@ namespace nezhaV2 {
      * Switches the OLED display on (usual I2C address 0x3C = 60, some modules use 0x3D = 61)
      * @param address I2C address of the display, eg: 60
      */
-    //% subcategory="Display" color=#5C6BC0 group="Setup"
+    //% subcategory="OLED display" color=#5C6BC0 group="Setup"
     //% weight=160
     //% blockId=nezhaV2_oled_start
     //% block="start display (address %address)"
@@ -1678,7 +1883,7 @@ namespace nezhaV2 {
     /**
      * Clears the display
      */
-    //% subcategory="Display" color=#5C6BC0 group="Setup"
+    //% subcategory="OLED display" color=#5C6BC0 group="Setup"
     //% weight=159
     //% blockId=nezhaV2_oled_clear
     //% block="clear display"
@@ -1693,7 +1898,7 @@ namespace nezhaV2 {
     /**
      * Large font (10 characters per line, 4 lines) or small font (21 characters, 8 lines)
      */
-    //% subcategory="Display" color=#5C6BC0 group="Setup"
+    //% subcategory="OLED display" color=#5C6BC0 group="Setup"
     //% weight=158
     //% blockId=nezhaV2_oled_big
     //% block="display large font %big"
@@ -1706,7 +1911,7 @@ namespace nezhaV2 {
      * Writes a line of text (line 0 is at the top). Small font: lines 0-7, large font: lines 0-3.
      * @param line line number, eg: 0
      */
-    //% subcategory="Display" color=#5C6BC0 group="Show"
+    //% subcategory="OLED display" color=#5C6BC0 group="Show"
     //% weight=157
     //% blockId=nezhaV2_oled_text
     //% block="show %text in line %line"
@@ -1753,7 +1958,7 @@ namespace nezhaV2 {
      * Writes a label and a value, e.g. "Distance: 23"
      * @param line line number, eg: 0
      */
-    //% subcategory="Display" color=#5C6BC0 group="Show"
+    //% subcategory="OLED display" color=#5C6BC0 group="Show"
     //% weight=156
     //% blockId=nezhaV2_oled_value
     //% block="show %label = %value in line %line"
@@ -1768,7 +1973,7 @@ namespace nezhaV2 {
      * @param speed current speed, eg: 40
      * @param line line number, eg: 0
      */
-    //% subcategory="Display" color=#5C6BC0 group="Show"
+    //% subcategory="OLED display" color=#5C6BC0 group="Show"
     //% weight=155
     //% blockId=nezhaV2_oled_linestate
     //% block="show line sensor state at %speed \\% in line %line"
@@ -1779,6 +1984,84 @@ namespace nezhaV2 {
         let m = lsHasMiddle ? (lineSeen(LineSensor.Middle) ? "1" : "0") : "-";
         let r = lineSeen(LineSensor.Right) ? "1" : "0";
         displayText("L" + l + " M" + m + " R" + r + "  v" + speed + "%", line);
+    }
+
+
+    /**
+     * Brightness (contrast) of the OLED display, 0-255
+     * @param value brightness, eg: 128
+     */
+    //% subcategory="OLED display" color=#5C6BC0 group="Setup"
+    //% weight=154
+    //% blockId=nezhaV2_oled_contrast
+    //% block="OLED brightness %value"
+    //% value.min=0 value.max=255 value.defl=128
+    export function displayContrast(value: number): void {
+        if (!oledReady) return;
+        if (value < 0) value = 0;
+        else if (value > 255) value = 255;
+        __oledCmd(0x81);
+        __oledCmd(value);
+    }
+
+    /**
+     * Shows white text on black (normal) or black text on white (inverted)
+     */
+    //% subcategory="OLED display" color=#5C6BC0 group="Setup"
+    //% weight=153
+    //% blockId=nezhaV2_oled_invert
+    //% block="OLED inverted %on"
+    //% on.shadow="toggleOnOff" on.defl=false
+    export function displayInvert(on: boolean): void {
+        if (!oledReady) return;
+        __oledCmd(on ? 0xA7 : 0xA6);
+    }
+
+    /**
+     * Draws a bar graph over the full width, e.g. for a sensor value
+     * @param value current value, eg: 50
+     * @param max value for a full bar, eg: 100
+     * @param line line number (0-7), eg: 3
+     */
+    //% subcategory="OLED display" color=#5C6BC0 group="Show"
+    //% weight=154
+    //% blockId=nezhaV2_oled_bar
+    //% block="OLED bar %value of %max in line %line"
+    //% max.defl=100 line.min=0 line.max=7 line.defl=3
+    //% inlineInputMode=inline
+    export function displayBar(value: number, max: number, line: number): void {
+        if (!oledReady) return;
+        if (line < 0) line = 0;
+        else if (line > 7) line = 7;
+        if (max <= 0) max = 1;
+        if (value < 0) value = 0;
+        else if (value > max) value = max;
+        let fill = Math.round(value * 125 / max);
+        let row = pins.createBuffer(128);
+        for (let x = 0; x < 128; x++) {
+            if (x == 0 || x == 127) row[x] = 0x7E;        // frame left / right
+            else if (x <= fill) row[x] = 0x7E;           // filled part
+            else row[x] = 0x42;                          // empty part: top and bottom edge
+        }
+        __oledWritePage(line, row);
+    }
+
+    /**
+     * Shows the five channels of the HW-871 line sensor (# = line, . = floor) and the line position
+     * @param line line number (0-7), eg: 0
+     */
+    //% subcategory="OLED display" color=#5C6BC0 group="Show"
+    //% weight=153
+    //% blockId=nezhaV2_oled_hw871
+    //% block="OLED show HW-871 channels in line %line"
+    //% line.min=0 line.max=7 line.defl=0
+    export function displayHw871(line: number): void {
+        let t = "";
+        for (let c = 1; c <= 5; c++) {
+            if (!hwUsed[c - 1]) t = t + "-";
+            else t = t + (hw871Seen(c) ? "#" : ".");
+        }
+        displayText(t + "  pos " + hw871Position(), line);
     }
 
     //% group="export functions"
