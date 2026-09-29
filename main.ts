@@ -2173,22 +2173,120 @@ namespace nezhaV2 {
         return (v & rightBit) != 0 && (v & leftBit) == 0;
     }
 
+    let pxSteerGain = 0.5;       // gentle steering for Planet X line following
+    let pxCurSpeed = 0;          // current speed (soft start / soft braking)
+    let pxSteer = 0;             // smoothed steering value
+    let pxLastFollow = 0;        // time of the last follow step
+    let pxLockUntil = 0;         // no new junction right after a turn
+
     /**
-     * One step of line following - use it inside a loop. Steering strength: "line steering strength" block (Rescue Line)
+     * How strongly the robot steers while following the line: small = gentle curves, large = sharp reactions
+     * @param gain steering strength, eg: 0.5
      */
     //% subcategory="Planet X line sensor" color=#795548 group="Drive"
     //% weight=116
+    //% blockId=nezhaV2_pxline_steering
+    //% block="Planet X steering strength %gain"
+    //% gain.min=0.1 gain.max=2 gain.defl=0.5
+    export function pxLineSteering(gain: number): void {
+        if (gain < 0.1) gain = 0.1;
+        else if (gain > 2) gain = 2;
+        pxSteerGain = gain;
+    }
+
+    /**
+     * One step of gentle line following - use it inside a loop.
+     * Starts smoothly, steers in soft curves (the inner wheel never runs backwards) and drives straight over intersections.
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Drive"
+    //% weight=115
     //% blockId=nezhaV2_pxline_follow
     //% block="Planet X follow the line at %speed \\%"
-    //% speed.min=0 speed.max=100 speed.defl=40
+    //% speed.min=0 speed.max=100 speed.defl=30
     export function pxLineFollow(speed: number): void {
-        let pos = pxLinePosition();
-        let turn = Math.round(pos * speed * lineGain / 100);
-        let left = speed + turn;
-        let right = speed - turn;
-        if (left > 100) left = 100; else if (left < -100) left = -100;
-        if (right > 100) right = 100; else if (right < -100) right = -100;
-        driveSteer(left, right);
+        if (speed < 0) speed = 0;
+        else if (speed > 100) speed = 100;
+        let now = input.runningTime();
+        if (now - pxLastFollow > 500) {
+            // (re)start after a pause: begin slowly
+            pxCurSpeed = 0;
+            pxSteer = 0;
+        }
+        pxLastFollow = now;
+        if (pxCurSpeed < speed) pxCurSpeed = Math.min(speed, pxCurSpeed + 2);
+        else pxCurSpeed = speed;
+        let target = 0;
+        if (!pxLineIntersection()) {
+            target = pxLinePosition() * pxCurSpeed * pxSteerGain / 100;
+        }
+        pxSteer += (target - pxSteer) * 0.3;
+        let left = pxCurSpeed + pxSteer;
+        let right = pxCurSpeed - pxSteer;
+        if (left < 0) left = 0; else if (left > 100) left = 100;
+        if (right < 0) right = 0; else if (right > 100) right = 100;
+        driveSteer(Math.round(left), Math.round(right));
+    }
+
+    /**
+     * true at an intersection or T-junction where a line leaves to the given side.
+     * Stays false for a moment after a turn so the same junction is not counted twice.
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Drive"
+    //% weight=114
+    //% blockId=nezhaV2_pxline_branch
+    //% block="Planet X junction to the %direction"
+    export function pxLineBranch(direction: TurnDirection): boolean {
+        if (input.runningTime() < pxLockUntil) return false;
+        if (!pxLineIntersection()) return false;
+        if (pxLineType == 2) return true;   // two channels cannot tell the sides apart
+        let v = __pxLineBits();
+        if (direction == TurnDirection.Right) return (v & 8) != 0;
+        return (v & 1) != 0;
+    }
+
+    /**
+     * Turns at a junction in a gentle curve: brakes softly, drives an arc and stops turning as soon as the new line is under the sensor
+     */
+    //% subcategory="Planet X line sensor" color=#795548 group="Drive"
+    //% weight=113
+    //% blockId=nezhaV2_pxline_turn
+    //% block="Planet X turn %direction at %speed \\%"
+    //% speed.min=5 speed.max=100 speed.defl=25
+    export function pxLineTurn(direction: TurnDirection, speed: number): void {
+        if (pxLineType == 0) return;
+        if (speed < 5) speed = 5;
+        else if (speed > 100) speed = 100;
+        // brake softly to the turning speed
+        while (pxCurSpeed > speed) {
+            pxCurSpeed -= 2;
+            driveSteer(pxCurSpeed, pxCurSpeed);
+            basic.pause(10);
+        }
+        driveSteer(speed, speed);
+        basic.pause(100);
+        // arc: outer wheel at full turning speed, inner wheel at a quarter
+        let inner = Math.round(speed / 4);
+        if (direction == TurnDirection.Right) driveSteer(speed, inner);
+        else driveSteer(inner, speed);
+        let end = input.runningTime() + 2000;
+        if (__pxQuad()) {
+            // leave the old line with the inner channels, then catch the new one
+            while ((__pxLineBits() & 6) != 0 && input.runningTime() < end) basic.pause(5);
+            end = input.runningTime() + 4000;
+            while ((__pxLineBits() & 6) == 0 && input.runningTime() < end) basic.pause(5);
+        } else {
+            let lead = direction == TurnDirection.Right ? 2 : 1;
+            while (__pxLineBits() != 0 && input.runningTime() < end) basic.pause(5);
+            end = input.runningTime() + 4000;
+            while ((__pxLineBits() & lead) == 0 && input.runningTime() < end) basic.pause(5);
+            end = input.runningTime() + 1500;
+            while ((__pxLineBits() & lead) != 0 && input.runningTime() < end) basic.pause(5);
+        }
+        // continue smoothly without stopping
+        pxCurSpeed = speed;
+        pxSteer = 0;
+        pxLastFollow = input.runningTime();
+        pxLockUntil = pxLastFollow + 800;
     }
 
     // ===================== OLED display (SSD1306, I2C) =====================

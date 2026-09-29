@@ -105,7 +105,11 @@
   "nezhaV2.pxLineLost": "wahr, wenn kein Kanal die Linie sieht. Beim 2-Kanal-Sensor ist das auch der Normalfall, solange die Linie zwischen den Sensoren liegt.",
   "nezhaV2.pxLineIntersection": "wahr an einer Kreuzung oder T-Kreuzung: 2-Kanal: beide Seiten sehen die Linie, 4 Kanäle: beide äußeren oder drei Kanäle",
   "nezhaV2.pxLineCorner": "wahr an einer 90°-Kurve: Nur der äußere Kanal auf dieser Seite sieht die Linie",
-  "nezhaV2.pxLineFollow": "Ein Schritt proportionales Linienfolgen – in einer Schleife verwenden. Lenkstärke: Block „Lenkstärke auf der Linie“ (Rescue Line)",
+  "nezhaV2.pxLineFollow": "Ein Schritt sanftes Linienfolgen – in einer Schleife verwenden. Fährt weich an, lenkt in weichen Bögen (das innere Rad dreht nie rückwärts) und fährt über Kreuzungen geradeaus.",
   "nezhaV2.displayPxLine": "Zeigt die Kanäle des Planet-X-Liniensensors von links nach rechts (# = Linie, . = Boden) und die Linienposition",
-  "nezhaV2.displayPxLine|param|line": "Zeilennummer (0–7)"
+  "nezhaV2.displayPxLine|param|line": "Zeilennummer (0–7)",
+  "nezhaV2.pxLineSteering": "Wie stark der Roboter beim Linienfolgen lenkt: klein = sanfte Kurven, groß = scharfe Reaktionen",
+  "nezhaV2.pxLineSteering|param|gain": "Lenkstärke, z. B. 0.5",
+  "nezhaV2.pxLineBranch": "wahr an einer Kreuzung oder T-Kreuzung, an der eine Linie zu dieser Seite abgeht. Direkt nach dem Abbiegen kurz falsch, damit dieselbe Kreuzung nicht doppelt zählt.",
+  "nezhaV2.pxLineTurn": "Biegt an einer Kreuzung in einem weichen Bogen ab: bremst sanft, fährt einen Bogen und hört auf zu drehen, sobald die neue Linie unter dem Sensor liegt"
 }
