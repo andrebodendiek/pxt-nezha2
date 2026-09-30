@@ -59,6 +59,12 @@ basic.forever(function () {
 - Ohne den Block „Räder“ rechnet die Erweiterung mit dem EV3-Rad (5,6 cm Durchmesser) und 12 cm Radabstand.
 - Die Display-Schrift kennt keine Umlaute: „ae“, „oe“, „ue“ schreiben.
 - Version 1.7.0 ist eine aufgeräumte Neufassung. Programme mit Blöcken älterer Versionen müssen angepasst werden.
+- Zwei 2-Kanal-Liniensensoren so montieren, dass die beiden inneren Kanäle höchstens so weit auseinanderliegen, wie die Linie breit ist (ca. 1,5 cm). Sonst verschwindet eine mittig liegende Linie zwischen den Sensoren.
+
+## Änderungen
+
+- **1.7.2** – Linienfolgen: deutlich weniger Suchdrehungen. „suche die Linie“ dreht zuerst zu der Seite, auf der die Linie zuletzt lag. „Linie verloren“ meldet eine mittig verschwundene Linie erst nach 0,3 s. An Ecken lenkt „folge der Linie“ entschlossener (inneres Rad darf kurz rückwärts). „biege … ab“ dreht höchstens 180° statt bis zu 6 s.
+- **1.7.1** – „drehe bis zur Linie“: symmetrische Suchzeit.
 
 ## Lizenz
 
