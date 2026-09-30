@@ -63,7 +63,8 @@ basic.forever(function () {
 
 ## Änderungen
 
-- **1.7.2** – Linienfolgen: deutlich weniger Suchdrehungen. „suche die Linie“ dreht zuerst zu der Seite, auf der die Linie zuletzt lag. „Linie verloren“ meldet eine mittig verschwundene Linie erst nach 0,3 s. An Ecken lenkt „folge der Linie“ entschlossener (inneres Rad darf kurz rückwärts). „biege … ab“ dreht höchstens 180° statt bis zu 6 s.
+- **1.7.3** – Zurück zum Fahrverhalten von 1.7.1. Einzige Änderung: „Linie verloren“ gilt erst, wenn 0,3 s lang kein Kanal die Linie sieht. Kurze Aussetzer lösen keine Suche mehr aus.
+- **1.7.2** – (zurückgenommen) geänderte Lenkung und Suche.
 - **1.7.1** – „drehe bis zur Linie“: symmetrische Suchzeit.
 
 ## Lizenz

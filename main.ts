@@ -424,9 +424,7 @@ namespace nezhaV2 {
     let pxLastFollow = 0;        // Zeit des letzten Folge-Schritts
     let pxLockUntil = 0;         // nach dem Abbiegen kurz keine neue Kreuzung melden
     let pxLastSeen = 0;          // Zeitpunkt, an dem zuletzt ein Kanal die Linie gesehen hat
-    let pxLastSide = 0;          // wo die Linie zuletzt lag: -1 = links außen, 0 = Mitte, 1 = rechts außen
-    let pxWideSearch = false;    // nach einer erfolglosen Lückenfahrt weiter hin und her suchen
-    const PX_LOST_MS = 300;      // Linie in der Mitte verschwunden: so lange noch nicht „verloren“ melden
+    const PX_LOST_MS = 300;      // so lange darf die Linie fehlen, bevor „Linie verloren“ gilt
 
     function __rjPins(port: RJPort): DigitalPin[] {
         switch (port) {
@@ -471,32 +469,8 @@ namespace nezhaV2 {
                 v = ((v & 1) << 3) | ((v & 2) << 1) | ((v & 4) >> 1) | ((v & 8) >> 3);
             }
         }
-        if (v != 0) {
-            pxLastSeen = input.runningTime();
-            pxWideSearch = false;
-            __pxRememberSide(v);
-        }
+        if (v != 0) pxLastSeen = input.runningTime();
         return v;
-    }
-
-    // merkt sich, auf welcher Seite die Linie zuletzt lag (nur die äußeren Kanäle zählen)
-    function __pxRememberSide(v: number): void {
-        if (pxLineType == 2) {
-            pxLastSide = v == 1 ? -1 : (v == 2 ? 1 : 0);
-            return;
-        }
-        let left = (v & 1) != 0;
-        let right = (v & 8) != 0;
-        if (left && !right) pxLastSide = -1;
-        else if (right && !left) pxLastSide = 1;
-        else pxLastSide = 0;
-    }
-
-    function __pxResetMemory(): void {
-        pxLineLastPos = 0;
-        pxLastSide = 0;
-        pxWideSearch = false;
-        pxLastSeen = input.runningTime();
     }
 
     function __pxCount(v: number): number {
@@ -523,7 +497,7 @@ namespace nezhaV2 {
         __pxRjPins(left, 0);
         __pxRjPins(right, 2);
         pxLineType = 5;
-        __pxResetMemory();
+        pxLineLastPos = 0;
     }
 
     /**
@@ -537,7 +511,7 @@ namespace nezhaV2 {
     export function pxLineSetup2(port: RJPort): void {
         __pxRjPins(port, 0);
         pxLineType = 2;
-        __pxResetMemory();
+        pxLineLastPos = 0;
     }
 
     /**
@@ -549,7 +523,7 @@ namespace nezhaV2 {
     //% block="Trackbit-Liniensensor an IIC"
     export function pxLineSetup4(): void {
         pxLineType = 4;
-        __pxResetMemory();
+        pxLineLastPos = 0;
     }
 
     /**
@@ -644,16 +618,13 @@ namespace nezhaV2 {
         } else if (__pxQuad() && Math.abs(pxLineLastPos) < 50) {
             // Linie zwischen den Kanälen oder Lücke: geradeaus
             pxLineLastPos = 0;
-        } else if (__pxQuad()) {
-            // Linie außen verlassen: sie liegt jetzt jenseits des äußeren Kanals
-            pxLineLastPos = pxLineLastPos < 0 ? -100 : 100;
         }
         return pxLineLastPos;
     }
 
     /**
-     * true, wenn kein Kanal die Linie sieht (Lücke oder Linie verlassen).
-     * Lag die Linie zuletzt in der Mitte, erst nach 0,3 s: Sie kann auch nur zwischen zwei Kanälen liegen.
+     * true, wenn seit 0,3 s kein Kanal die Linie gesehen hat (Lücke oder Linie verlassen).
+     * Kurze Aussetzer, z. B. wenn die Linie gerade zwischen zwei Kanälen liegt, zählen nicht.
      */
     //% subcategory="2 Liniensensor" color=#795548 group="Abfragen"
     //% weight=86
@@ -661,8 +632,6 @@ namespace nezhaV2 {
     //% block="Linie verloren"
     export function pxLineLost(): boolean {
         if (__pxLineBits() != 0) return false;
-        // zuletzt außen gesehen: der Roboter hat die Linie seitlich verlassen
-        if (pxLastSide != 0) return true;
         return input.runningTime() - pxLastSeen > PX_LOST_MS;
     }
 
@@ -718,25 +687,14 @@ namespace nezhaV2 {
         pxLastFollow = now;
         if (pxCurSpeed < speed) pxCurSpeed = Math.min(speed, pxCurSpeed + 2);
         else pxCurSpeed = speed;
-        let v = __pxLineBits();
-        // nur wenn beide äußeren Kanäle die Linie sehen, ist es eine Kreuzung: geradeaus
-        let crossing = __pxQuad() ? (v & 9) == 9 : (pxLineType == 2 && v == 3);
-        let pos = crossing ? 0 : pxLinePosition();
-        let target = pos * pxCurSpeed * pxSteerGain / 100;
-        let react = 0.3;
-        let minInner = 0;
-        if (__pxQuad() && Math.abs(pos) >= 100) {
-            // Linie nur noch am äußeren Kanal oder außen verloren: entschlossen zur Linie drehen,
-            // das innere Rad darf dabei etwas rückwärts laufen
-            let strong = pxCurSpeed * Math.max(1.3, pxSteerGain);
-            target = pos > 0 ? strong : -strong;
-            react = 0.6;
-            minInner = -pxCurSpeed / 2;
+        let target = 0;
+        if (!pxLineIntersection()) {
+            target = pxLinePosition() * pxCurSpeed * pxSteerGain / 100;
         }
-        pxSteer += (target - pxSteer) * react;
-        // sonst dreht das innere Rad nie rückwärts: weiche Bögen statt Drehen auf der Stelle
-        let left = __clamp(pxCurSpeed + pxSteer, minInner, 100);
-        let right = __clamp(pxCurSpeed - pxSteer, minInner, 100);
+        pxSteer += (target - pxSteer) * 0.3;
+        // das innere Rad dreht nie rückwärts: weiche Bögen statt Drehen auf der Stelle
+        let left = __clamp(pxCurSpeed + pxSteer, 0, 100);
+        let right = __clamp(pxCurSpeed - pxSteer, 0, 100);
         driveSteer(Math.round(left), Math.round(right));
     }
 
@@ -765,17 +723,16 @@ namespace nezhaV2 {
         let inner = Math.round(speed / 4);
         if (direction == TurnDirection.Right) driveSteer(speed, inner);
         else driveSteer(inner, speed);
-        // höchstens 60° drehen, um die alte Linie zu verlassen, und höchstens 120° weiter bis zur neuen
-        let end = input.runningTime() + __turnTimeMs(60, speed, inner);
+        let end = input.runningTime() + 2000;
         if (__pxQuad()) {
             // erst die alte Linie mit den inneren Kanälen verlassen, dann die neue finden
             while ((__pxLineBits() & 6) != 0 && input.runningTime() < end) basic.pause(5);
-            end = input.runningTime() + __turnTimeMs(120, speed, inner);
+            end = input.runningTime() + 4000;
             while ((__pxLineBits() & 6) == 0 && input.runningTime() < end) basic.pause(5);
         } else {
             let lead = direction == TurnDirection.Right ? 2 : 1;
             while (__pxLineBits() != 0 && input.runningTime() < end) basic.pause(5);
-            end = input.runningTime() + __turnTimeMs(120, speed, inner);
+            end = input.runningTime() + 4000;
             while ((__pxLineBits() & lead) == 0 && input.runningTime() < end) basic.pause(5);
             end = input.runningTime() + 1500;
             while ((__pxLineBits() & lead) != 0 && input.runningTime() < end) basic.pause(5);
@@ -784,8 +741,6 @@ namespace nezhaV2 {
         pxCurSpeed = speed;
         pxSteer = 0;
         pxLastFollow = input.runningTime();
-        pxLastSeen = pxLastFollow;
-        pxLastSide = 0;
         pxLockUntil = pxLastFollow + 800;
     }
 
@@ -1381,22 +1336,11 @@ namespace nezhaV2 {
         return __pxQuad() && (__pxLineBits() & 6) != 0;
     }
 
-    // Radgeschwindigkeit in cm/s bei diesem Tempo
-    function __cmPerSecond(speed: number): number {
-        return speed * 9 / 360 * degreeToDistance;
-    }
-
     // geschätzte Fahrzeit für eine Strecke aus Radumfang und Tempo
     function __driveTimeMs(cm: number, speed: number): number {
         if (speed <= 0) return 0;
-        return cm / __cmPerSecond(speed) * 1000;
-    }
-
-    // geschätzte Zeit, bis sich der Roboter mit diesen Radtempos um angle Grad gedreht hat
-    function __turnTimeMs(angle: number, speedOuter: number, speedInner: number): number {
-        let diff = __cmPerSecond(speedOuter) - __cmPerSecond(speedInner);
-        if (diff <= 0) return 0;
-        return angle * Math.PI / 180 * wheelBaseDistance / diff * 1000 * driveTurnFactor;
+        let cmPerSecond = speed * 9 / 360 * degreeToDistance;
+        return cm / cmPerSecond * 1000;
     }
 
     /**
@@ -1489,7 +1433,6 @@ namespace nezhaV2 {
             basic.pause(5);
         }
         driveStop();
-        pxWideSearch = true;
         return false;
     }
 
@@ -1505,12 +1448,12 @@ namespace nezhaV2 {
     //% speed.min=0 speed.max=100 speed.defl=25 maxAngle.defl=120
     //% inlineInputMode=inline
     export function turnUntilLine(direction: TurnDirection, speed: number, maxAngle: number): boolean {
-        let end = input.runningTime() + __turnTimeMs(maxAngle, speed, -speed);
+        let arc = maxAngle * Math.PI / 180 * (wheelBaseDistance / 2);
+        let end = input.runningTime() + __driveTimeMs(arc, speed);
         if (direction == TurnDirection.Right) driveSteer(speed, -speed);
         else driveSteer(-speed, speed);
-        // steht der Sensor noch auf einer Linie, erst von ihr herunterdrehen, dann die neue suchen
-        let leave = input.runningTime() + 400;
-        while (__pxLineBits() != 0 && input.runningTime() < leave) basic.pause(5);
+        // erst die aktuelle Linie verlassen, dann die neue suchen
+        basic.pause(150);
         while (input.runningTime() < end) {
             let found = direction == TurnDirection.Right ? __lineRight() : __lineLeft();
             if (found || __lineMiddle()) {
@@ -1524,8 +1467,7 @@ namespace nezhaV2 {
     }
 
     /**
-     * Sucht die Linie durch Hin- und Herdrehen (nach einer Lücke, Kurve oder einem Hindernis).
-     * Dreht zuerst zu der Seite, auf der die Linie zuletzt lag, und endet ohne Fund wieder in der Ausgangsrichtung.
+     * Sucht die Linie durch Hin- und Herdrehen (nach einer Lücke, Kurve oder einem Hindernis)
      * @param speed Tempo in %, eg: 25
      */
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Manöver"
@@ -1535,21 +1477,9 @@ namespace nezhaV2 {
     //% speed.min=0 speed.max=100 speed.defl=25
     export function searchLine(speed: number): boolean {
         if (__pxLineBits() != 0) return true;
-        if (pxLastSide != 0) {
-            // zuerst dorthin drehen, wo die Linie zuletzt war, dann zur anderen Seite, dann zurück
-            let first = pxLastSide < 0 ? TurnDirection.Left : TurnDirection.Right;
-            let second = pxLastSide < 0 ? TurnDirection.Right : TurnDirection.Left;
-            if (turnUntilLine(first, speed, 90)) return true;
-            if (turnUntilLine(second, speed, 150)) return true;
-            if (turnUntilLine(first, speed, 60)) return true;
-            return false;
-        }
-        // Linie lag zuletzt in der Mitte (z. B. vor einer Lücke): nur wenig hin und her,
-        // nach einer erfolglosen Lückenfahrt weiter
-        let a = pxWideSearch ? 60 : 25;
-        if (turnUntilLine(TurnDirection.Left, speed, a)) return true;
-        if (turnUntilLine(TurnDirection.Right, speed, 2 * a)) return true;
-        if (turnUntilLine(TurnDirection.Left, speed, a)) return true;
+        if (turnUntilLine(TurnDirection.Left, speed, 60)) return true;
+        if (turnUntilLine(TurnDirection.Right, speed, 120)) return true;
+        if (turnUntilLine(TurnDirection.Left, speed, 60)) return true;
         return false;
     }
 
