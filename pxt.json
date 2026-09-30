@@ -1,6 +1,6 @@
 {
     "name": "pxt-nezha2",
-    "version": "1.7.0",
+    "version": "1.7.1",
     "description": "Nezha V2 (ELECFREAKS) für den Unterricht: Motoren, PlanetX-Liniensensor, Farbsensor, Ultraschall, OLED-Display und Rescue Line – deutsche Blöcke",
     "license": "MIT",
     "dependencies": {

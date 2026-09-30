@@ -1444,7 +1444,7 @@ namespace nezhaV2 {
     //% inlineInputMode=inline
     export function turnUntilLine(direction: TurnDirection, speed: number, maxAngle: number): boolean {
         let arc = maxAngle * Math.PI / 180 * (wheelBaseDistance / 2);
-        let end = input.runningTime() + __driveTimeMs(arc, speed) + 300;
+        let end = input.runningTime() + __driveTimeMs(arc, speed);
         if (direction == TurnDirection.Right) driveSteer(speed, -speed);
         else driveSteer(-speed, speed);
         // erst die aktuelle Linie verlassen, dann die neue suchen
