@@ -1,25 +1,14 @@
 {
     "name": "pxt-nezha2",
-    "version": "1.6.1",
-    "description": "The micro:bit extension board Nezha2 with RJ11 connection port by ELECFREAKS Co.ltd",
+    "version": "1.7.0",
+    "description": "Nezha V2 (ELECFREAKS) für den Unterricht: Motoren, PlanetX-Liniensensor, Farbsensor, Ultraschall, OLED-Display und Rescue Line – deutsche Blöcke",
     "license": "MIT",
     "dependencies": {
         "core": "*"
     },
     "files": [
         "README.md",
-        "main.ts",
-        "_locales/pxt-nezha2-strings.json",
-        "_locales/pxt-nezha2-jsdoc-strings.json",
-        "_locales/nl/pxt-nezha2-strings.json",
-        "_locales/nl/pxt-nezha2-jsdoc-strings.json",
-        "_locales/zh/pxt-nezha2-strings.json",
-        "_locales/zh/pxt-nezha2-jsdoc-strings.json",
-        "_locales/ko/pxt-nezha2-strings.json",
-        "_locales/da/pxt-nezha2-strings.json",
-        "_locales/da/pxt-nezha2-jsdoc-strings.json",
-        "_locales/de/pxt-nezha2-strings.json",
-        "_locales/de/pxt-nezha2-jsdoc-strings.json"
+        "main.ts"
     ],
     "testFiles": [
         "test.ts"

@@ -1,68 +1,67 @@
-# NeZha V2 Expansion Pack
+# Nezha V2-ab
 
-![NeZha V2 Expansion Board](nezha_v2.png)
+MakeCode-Erweiterung für das **ELECFREAKS Nezha V2** (micro:bit) im Unterricht ab Jahrgang 7.
+Alle Blöcke sind deutsch. Die Erweiterung braucht keine weiteren Erweiterungen.
 
-The NeZha V2 Expansion Pack is tailored for the micro:bit, aimed at stimulating students' innovative thinking and practical skills. This guide facilitates programming and control of the NeZha V2 Expansion Board, enabling functions such as motor control and sensor integration. To purchase the NeZha V2, visit the [Elecfreaks Official Store](https://shop.elecfreaks.com/products/nezha-breakout-board-v2).
+![Nezha V2](nezha_v2.png)
 
-## Key Features
+## Einbinden
 
-- **Independent Motor Control:** Directly manipulate motor direction using onboard buttons, even without connecting to the micro:bit.
-- **LEGO & Fischertechnik Compatibility:** Interfaces on the casing align with LEGO and Fischertechnik bricks, fostering personalized electronic project constructions.
-- **Color Recognition System:** An intuitive labelling system using colors simplifies sensor and port connections.
+In MakeCode unter **Erweiterungen** diese Adresse eingeben:
 
-## Getting Started
+```
+github.com/andrebodendiek/pxt-nezha2
+```
 
-### Installing the Extension
+## Unterkategorien
 
-1. Launch MakeCode editor and click the "Extensions" icon.
-2. Search for "NeZha V2" or paste the link "https://github.com/elecfreaks/pxt-nezha2" to download and install the extension.
+| Nr. | Unterkategorie | Hardware | Anschluss |
+|---|---|---|---|
+| 1 | Motoren | 2 Antriebsmotoren, weitere Motoren einzeln | M1–M4 |
+| 2 | Liniensensor | 1 oder 2 PlanetX-2-Kanal-Liniensensoren oder PlanetX-Trackbit | J1–J4 bzw. IIC |
+| 3 | Farbsensor | PlanetX-Farbsensor | IIC |
+| 4 | Ultraschall | PlanetX-Ultraschallsensor | J1–J4 |
+| 5 | Display | OLED 0,96″, 128 × 64, I²C (SSD1306) | IIC |
+| 6 | Rescue Line | Manöver für RoboCupJunior Line / Line Entry | – |
 
-### Basic Examples
-
-#### Motor Rotation Control
-
-**Block Editor Example**
-
-1. Drag the "on button A pressed" block into the script area.
-2. Below it, insert the "NeZha V2 - Start Motor" block, set to Motor M1 rotating clockwise.
-3. Repeat for Button B, controlling other motors as desired.
-
-**JavaScript Example**
+## Beispiel: Linienfolger
 
 ```javascript
+let fahren = false
+nezhaV2.driveSetup(nezhaV2.MotorPostion.M1, nezhaV2.MountMode.Normal, nezhaV2.MotorPostion.M2, nezhaV2.MountMode.Normal)
+nezhaV2.pxLineSetupDual(nezhaV2.RJPort.J1, nezhaV2.RJPort.J2)
+nezhaV2.displayStart(60)
+
 input.onButtonPressed(Button.A, function () {
-    NEZHA_V2.nezha2MotorStart(MotorPosition.M1, MovementDirection.CW);
-});
-// Example code omitted; add logic here for Button B controlling different motors
-```
-
-#### Moving Motor to a Specified Position
-
-**Block Editor Example**
-
-1. Utilize the "on button B pressed" block.
-2. Append the "NeZha V2 - Go To Absolute Position" block, specifying Motor M1 to rotate clockwise to position 0.
-
-**JavaScript Example**
-
-```javascript
+    fahren = true
+})
 input.onButtonPressed(Button.B, function () {
-    NEZHA_V2.goToAbsolutePosition(MotorPosition.M1, ServoMotionMode.CW, 0);
-});
+    fahren = false
+    nezhaV2.driveStop()
+})
+basic.forever(function () {
+    if (fahren) {
+        if (nezhaV2.pxLineBranch(nezhaV2.TurnDirection.Right)) {
+            nezhaV2.pxLineTurn(nezhaV2.TurnDirection.Right, 25)
+        } else {
+            nezhaV2.pxLineFollow(30)
+        }
+    }
+})
+basic.forever(function () {
+    nezhaV2.displayPxLine(2)
+    basic.pause(200)
+})
 ```
 
-## Advanced Applications
+## Hinweise
 
-Delve into advanced functionalities like motor speed regulation and sensor data retrieval. For detailed examples and instructions, visit our [online tutorials](https://wiki.elecfreaks.com/en/microbit/expansion-board/nezha-v2/).
+- Ohne den Block „Räder“ rechnet die Erweiterung mit dem EV3-Rad (5,6 cm Durchmesser) und 12 cm Radabstand.
+- Die Display-Schrift kennt keine Umlaute: „ae“, „oe“, „ue“ schreiben.
+- Version 1.7.0 ist eine aufgeräumte Neufassung. Programme mit Blöcken älterer Versionen müssen angepasst werden.
 
-## Examples and New Features
+## Lizenz
 
-For implementation details of blocks and examples of new features, please check the files in the "examples" directory.
+MIT, auf Grundlage von [elecfreaks/pxt-nezha2](https://github.com/elecfreaks/pxt-nezha2).
 
-## Supported Targets
-
-- PXT/micro:bit
-
-## License
-
-This extension is licensed under the MIT License.
+<script src="https://makecode.com/gh-pages-embed.js"></script><script>makeCodeRender("{{ site.makecode.home_url }}", "{{ site.github.owner_name }}/{{ site.github.repository_name }}");</script>
