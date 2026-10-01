@@ -22,18 +22,22 @@ github.com/andrebodendiek/pxt-nezha2
 | 3 | Farbsensor | PlanetX-Farbsensor | IIC |
 | 4 | Ultraschall | PlanetX-Ultraschallsensor | J1–J4 |
 | 5 | Display | OLED 0,96″, 128 × 64, I²C (SSD1306) | IIC |
-| 6 | Rescue Line | Manöver für RoboCupJunior Line / Line Entry | – |
 
 ## Beispiel: Linienfolger
 
+Jeder der vier Kanäle bekommt eine eigene Regel für die beiden Motoren. Sieht kein Kanal die Linie, fährt der Roboter so weiter wie zuletzt. So bleibt jede Zeile für Schülerinnen und Schüler erklärbar.
+
 ```javascript
+// Linienfolger, den man Zeile für Zeile erklären kann:
+// Jeder Kanal des Liniensensors bekommt eine eigene Regel für die Motoren.
 let fahren = false
+let schnell = 30
+let langsam = 15
 nezhaV2.driveSetup(nezhaV2.MotorPostion.M1, nezhaV2.MountMode.Normal, nezhaV2.MotorPostion.M2, nezhaV2.MountMode.Normal)
 nezhaV2.pxLineSetupDual(nezhaV2.RJPort.J1, nezhaV2.RJPort.J2)
-nezhaV2.displayStart(60)
-
 input.onButtonPressed(Button.A, function () {
     fahren = true
+    nezhaV2.driveSteer(schnell, schnell)
 })
 input.onButtonPressed(Button.B, function () {
     fahren = false
@@ -41,16 +45,27 @@ input.onButtonPressed(Button.B, function () {
 })
 basic.forever(function () {
     if (fahren) {
-        if (nezhaV2.pxLineBranch(nezhaV2.TurnDirection.Right)) {
-            nezhaV2.pxLineTurn(nezhaV2.TurnDirection.Right, 25)
-        } else {
-            nezhaV2.pxLineFollow(30)
+        if (nezhaV2.pxLineSeen(nezhaV2.LineChannel.C1) && nezhaV2.pxLineSeen(nezhaV2.LineChannel.C4)) {
+            // Kreuzung: beide äußeren Kanäle sehen Schwarz – geradeaus drüberfahren
+            nezhaV2.driveSteer(schnell, schnell)
+        } else if (nezhaV2.pxLineSeen(nezhaV2.LineChannel.C1)) {
+            // Linie ganz links: scharf nach links
+            nezhaV2.driveSteer(0, schnell)
+        } else if (nezhaV2.pxLineSeen(nezhaV2.LineChannel.C4)) {
+            // Linie ganz rechts: scharf nach rechts
+            nezhaV2.driveSteer(schnell, 0)
+        } else if (nezhaV2.pxLineSeen(nezhaV2.LineChannel.C2) && nezhaV2.pxLineSeen(nezhaV2.LineChannel.C3)) {
+            // Linie genau in der Mitte: geradeaus
+            nezhaV2.driveSteer(schnell, schnell)
+        } else if (nezhaV2.pxLineSeen(nezhaV2.LineChannel.C2)) {
+            // Linie etwas links: leicht nach links
+            nezhaV2.driveSteer(langsam, schnell)
+        } else if (nezhaV2.pxLineSeen(nezhaV2.LineChannel.C3)) {
+            // Linie etwas rechts: leicht nach rechts
+            nezhaV2.driveSteer(schnell, langsam)
         }
+        // Sieht kein Kanal die Linie, ändert sich nichts: Der Roboter fährt so weiter wie zuletzt.
     }
-})
-basic.forever(function () {
-    nezhaV2.displayPxLine(2)
-    basic.pause(200)
 })
 ```
 
@@ -63,6 +78,7 @@ basic.forever(function () {
 
 ## Änderungen
 
+- **1.7.4** – Unterkategorie „6 Rescue Line“ ausgeblendet (die Blöcke funktionieren in bestehenden Programmen weiter). Neues Beispiel: Linienfolger aus einfachen Regeln je Kanal.
 - **1.7.3** – Zurück zum Fahrverhalten von 1.7.1. Einzige Änderung: „Linie verloren“ gilt erst, wenn 0,3 s lang kein Kanal die Linie sieht. Kurze Aussetzer lösen keine Suche mehr aus.
 - **1.7.2** – (zurückgenommen) geänderte Lenkung und Suche.
 - **1.7.1** – „drehe bis zur Linie“: symmetrische Suchzeit.

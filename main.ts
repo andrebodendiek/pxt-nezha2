@@ -4,7 +4,7 @@
  * OLED-Display 0,96" und Rescue Line (RoboCupJunior Line / Line Entry)
  */
 //% color=#ff0011 icon="\uf06d" block="Nezha V2-ab" blockId="nezhaV2"
-//% subcategories='["1 Motoren", "2 Liniensensor", "3 Farbsensor", "4 Ultraschall", "5 Display", "6 Rescue Line"]'
+//% subcategories='["1 Motoren", "2 Liniensensor", "3 Farbsensor", "4 Ultraschall", "5 Display"]'
 //% groups='["Einrichten", "Fahren", "Einzelmotor", "Abfragen", "Erkennen", "Messen", "Anzeigen", "Manöver"]'
 namespace nezhaV2 {
 
@@ -1349,6 +1349,7 @@ namespace nezhaV2 {
      * @param bright ab hier gilt weiß, eg: 1200
      * @param silver ab hier gilt silber, eg: 2600
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Einrichten"
     //% weight=100
     //% blockId=nezhaV2_line_levels
@@ -1363,6 +1364,7 @@ namespace nezhaV2 {
     /**
      * true, wenn der Farbsensor diese Feldfarbe sieht
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Erkennen"
     //% weight=90
     //% blockId=nezhaV2_line_fieldcolor
@@ -1391,6 +1393,7 @@ namespace nezhaV2 {
     /**
      * true, wenn der Farbsensor eine grüne Markierung sieht (sie liegt kurz vor der Kreuzung)
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Erkennen"
     //% weight=89
     //% blockId=nezhaV2_line_marker
@@ -1402,6 +1405,7 @@ namespace nezhaV2 {
     /**
      * Neigung des Roboters in Grad (plus = Nase oben): Rampen bis 25°, Wippen bis 20°
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Erkennen"
     //% weight=88
     //% blockId=nezhaV2_line_tilt
@@ -1416,6 +1420,7 @@ namespace nezhaV2 {
      * @param speed Tempo in %, eg: 30
      * @param maxCm höchstens so weit suchen, eg: 25
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Manöver"
     //% weight=80
     //% blockId=nezhaV2_line_gap
@@ -1441,6 +1446,7 @@ namespace nezhaV2 {
      * @param speed Tempo in %, eg: 25
      * @param maxAngle höchstens so weit drehen, eg: 120
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Manöver"
     //% weight=79
     //% blockId=nezhaV2_line_turn_until
@@ -1470,6 +1476,7 @@ namespace nezhaV2 {
      * Sucht die Linie durch Hin- und Herdrehen (nach einer Lücke, Kurve oder einem Hindernis)
      * @param speed Tempo in %, eg: 25
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Manöver"
     //% weight=78
     //% blockId=nezhaV2_line_search
@@ -1487,6 +1494,7 @@ namespace nezhaV2 {
      * Fährt über eine Kreuzung: nach links oder rechts im weichen Bogen, geradeaus auch über eine Lücke dahinter
      * @param speed Tempo in %, eg: 25
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Manöver"
     //% weight=77
     //% blockId=nezhaV2_line_cross
@@ -1515,6 +1523,7 @@ namespace nezhaV2 {
      * @param sideCm so weit zur Seite fahren, eg: 20
      * @param aroundCm so weit am Hindernis vorbeifahren, eg: 30
      */
+    //% blockHidden=true
     //% subcategory="6 Rescue Line" color=#00B0A0 group="Manöver"
     //% weight=76
     //% blockId=nezhaV2_line_avoid
